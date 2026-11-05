@@ -2,6 +2,7 @@
 #   docker compose up -d --build     เปิดระบบ
 #   เว็บ        http://localhost:8081
 #   phpMyAdmin  http://localhost:8082   (root, ไม่มีรหัสผ่าน)
+#   Cloudflare Tunnel (ดู URL สาธารณะ): docker compose logs tunnel
 #   ล้างข้อมูลกลับเป็นค่าเริ่มต้น: docker compose down -v แล้ว up ใหม่
 name: bookshop-final
 
@@ -46,6 +47,13 @@ services:
       - "8082:80"
     depends_on:
       - db
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --url http://web:80
+    restart: unless-stopped
+    depends_on:
+      - web
 
 volumes:
   dbdata:
