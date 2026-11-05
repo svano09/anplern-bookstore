@@ -36,13 +36,17 @@ JOIN (
     FROM order_item
     GROUP BY order_id
 ) i ON i.order_id = o.order_id
-JOIN order_status_log l ON l.log_id = (
-    SELECT l2.log_id
-    FROM order_status_log l2
-    WHERE l2.order_id = o.order_id
-    ORDER BY l2.changed_at DESC, l2.log_id DESC
-    LIMIT 1
-)
+JOIN (
+    SELECT
+        order_id,
+        note,
+        changed_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY order_id
+            ORDER BY changed_at DESC, log_id DESC
+        ) AS rn
+    FROM order_status_log
+) l ON l.order_id = o.order_id AND l.rn = 1
 WHERE (o.status = ? OR ? = '')
   AND (o.member_id = ? OR ? = 0)
 ORDER BY o.order_date DESC

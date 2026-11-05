@@ -160,14 +160,11 @@ function cart_merge_session($pdo) {
         FROM book
         WHERE book_id = ? AND stock > 0
         ON DUPLICATE KEY UPDATE
-            quantity = LEAST(
-                cart_item.quantity + VALUES(quantity),
-                (SELECT stock FROM book WHERE book_id = ?)
-            )
+            quantity = LEAST(cart_item.quantity + VALUES(quantity), book.stock)
     ";
     $stmt = $pdo->prepare($sql);
     foreach ($_SESSION["cart"] as $book_id => $qty)
-        $stmt->execute([$_SESSION["member_id"], $qty, $book_id, $book_id]);
+        $stmt->execute([$_SESSION["member_id"], $qty, $book_id]);
     unset($_SESSION["cart"]);
 }
 
@@ -295,22 +292,29 @@ function price_cart($pdo, $cart, $coupon_code) {
             p.promo_name,
             IFNULL(p.discount_percent, 0) AS discount_percent
         FROM book b
-        LEFT JOIN promotion p ON p.promo_id = (
-            SELECT p2.promo_id
-            FROM promotion p2
-            WHERE p2.is_active = 1
-              AND CURDATE() BETWEEN p2.start_date AND p2.end_date
-              AND (
-                  (p2.promo_type = 'seasonal'
-                      AND (p2.category_id IS NULL OR p2.category_id = b.category_id))
-                  OR
-                  (p2.promo_type = 'clearance'
-                      AND DATEDIFF(CURDATE(), b.added_date) >= p2.min_days_in_stock
-                      AND b.stock <= p2.max_stock)
-              )
-            ORDER BY p2.discount_percent DESC
-            LIMIT 1
-        )
+        LEFT JOIN (
+            SELECT
+                b2.book_id,
+                p2.promo_id,
+                p2.promo_name,
+                p2.discount_percent,
+                ROW_NUMBER() OVER (
+                    PARTITION BY b2.book_id
+                    ORDER BY p2.discount_percent DESC, p2.promo_id ASC
+                ) AS rn
+            FROM book b2
+            JOIN promotion p2
+                ON p2.is_active = 1
+               AND CURDATE() BETWEEN p2.start_date AND p2.end_date
+               AND (
+                   (p2.promo_type = 'seasonal'
+                    AND (p2.category_id IS NULL OR p2.category_id = b2.category_id))
+                   OR
+                   (p2.promo_type = 'clearance'
+                    AND DATEDIFF(CURDATE(), b2.added_date) >= p2.min_days_in_stock
+                    AND b2.stock <= p2.max_stock)
+               )
+        ) p ON p.book_id = b.book_id AND p.rn = 1
         WHERE b.book_id IN ($marks)
         ORDER BY b.title
     ";

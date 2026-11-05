@@ -1,7 +1,7 @@
 -- =====================================================================
 --  รวมคำสั่ง SQL เชิงวิเคราะห์และประมวลผลหลักของระบบ อ่านเพลิน Bookstore
 --  พารามิเตอร์ (?) ในโค้ด PHP ถูกแทนด้วยค่าตัวอย่างเพื่อให้ทดสอบรันได้ทันที
---  รองรับ MySQL 8.0+ / MariaDB 10.4+ (ใช้ Window Function ในการจัดอันดับ)
+--  รองรับ MySQL 8.0+ / MariaDB 10.4+ / TiDB Cloud (ใช้ Window Function)
 -- =====================================================================
 
 -- 1. ค้นหาหนังสือ พร้อมคำนวณราคาหลังหักโปรโมชั่นระดับสินค้าที่ดีที่สุดของวันนี้ (search.php)
@@ -18,22 +18,30 @@ SELECT
     ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) AS sale_price
 FROM book b
 JOIN category c ON c.category_id = b.category_id
-LEFT JOIN promotion p ON p.promo_id = (
-    SELECT p2.promo_id
-    FROM promotion p2
-    WHERE p2.is_active = 1
-      AND CURDATE() BETWEEN p2.start_date AND p2.end_date
-      AND (
-          (p2.promo_type = 'seasonal'
-           AND (p2.category_id IS NULL OR p2.category_id = b.category_id))
-          OR
-          (p2.promo_type = 'clearance'
-           AND DATEDIFF(CURDATE(), b.added_date) >= p2.min_days_in_stock
-           AND b.stock <= p2.max_stock)
-      )
-    ORDER BY p2.discount_percent DESC
-    LIMIT 1
-)
+LEFT JOIN (
+    SELECT
+        b2.book_id,
+        p2.promo_id,
+        p2.promo_name,
+        p2.promo_type,
+        p2.discount_percent,
+        ROW_NUMBER() OVER (
+            PARTITION BY b2.book_id
+            ORDER BY p2.discount_percent DESC, p2.promo_id ASC
+        ) AS rn
+    FROM book b2
+    JOIN promotion p2
+        ON p2.is_active = 1
+       AND CURDATE() BETWEEN p2.start_date AND p2.end_date
+       AND (
+           (p2.promo_type = 'seasonal'
+            AND (p2.category_id IS NULL OR p2.category_id = b2.category_id))
+           OR
+           (p2.promo_type = 'clearance'
+            AND DATEDIFF(CURDATE(), b2.added_date) >= p2.min_days_in_stock
+            AND b2.stock <= p2.max_stock)
+       )
+) p ON p.book_id = b.book_id AND p.rn = 1
 WHERE (b.category_id = 0 OR 0 = 0)
   AND (b.title LIKE '%%' OR b.author LIKE '%%')
   AND ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) BETWEEN 0 AND 999999
@@ -79,17 +87,24 @@ LEFT JOIN (
       AND o.order_date >= CURDATE() - INTERVAL 90 DAY
     GROUP BY oi.book_id
 ) s ON s.book_id = b.book_id
-LEFT JOIN promotion p ON p.promo_id = (
-    SELECT p2.promo_id
-    FROM promotion p2
-    WHERE p2.promo_type = 'clearance'
-      AND p2.is_active = 1
-      AND CURDATE() BETWEEN p2.start_date AND p2.end_date
-      AND DATEDIFF(CURDATE(), b.added_date) >= p2.min_days_in_stock
-      AND b.stock <= p2.max_stock
-    ORDER BY p2.discount_percent DESC
-    LIMIT 1
-)
+LEFT JOIN (
+    SELECT
+        b2.book_id,
+        p2.promo_id,
+        p2.promo_name,
+        p2.discount_percent,
+        ROW_NUMBER() OVER (
+            PARTITION BY b2.book_id
+            ORDER BY p2.discount_percent DESC, p2.promo_id ASC
+        ) AS rn
+    FROM book b2
+    JOIN promotion p2
+        ON p2.promo_type = 'clearance'
+       AND p2.is_active = 1
+       AND CURDATE() BETWEEN p2.start_date AND p2.end_date
+       AND DATEDIFF(CURDATE(), b2.added_date) >= p2.min_days_in_stock
+       AND b2.stock <= p2.max_stock
+) p ON p.book_id = b.book_id AND p.rn = 1
 WHERE DATEDIFF(CURDATE(), b.added_date) >= r.need_days
    OR b.stock <= r.need_stock
 ORDER BY discount_percent DESC, days_in_stock DESC;
@@ -320,13 +335,17 @@ JOIN (
     FROM order_item
     GROUP BY order_id
 ) i ON i.order_id = o.order_id
-JOIN order_status_log l ON l.log_id = (
-    SELECT l2.log_id
-    FROM order_status_log l2
-    WHERE l2.order_id = o.order_id
-    ORDER BY l2.changed_at DESC, l2.log_id DESC
-    LIMIT 1
-)
+JOIN (
+    SELECT
+        order_id,
+        note,
+        changed_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY order_id
+            ORDER BY changed_at DESC, log_id DESC
+        ) AS rn
+    FROM order_status_log
+) l ON l.order_id = o.order_id AND l.rn = 1
 WHERE (o.status = '' OR '' = '')
 ORDER BY o.order_date DESC
 LIMIT 10 OFFSET 0;
