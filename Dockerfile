@@ -9,8 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && echo "date.timezone = Asia/Bangkok" > /usr/local/etc/php/conf.d/timezone.ini \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# คัดลอกโค้ดเว็บทั้งหมดเข้าสู่อิมเมจ
+# คัดลอกโค้ดเว็บและไฟล์ฐานข้อมูลเริ่มต้นเข้าสู่อิมเมจ
 COPY bookshop/ /var/www/html/
+COPY database/bookshop.sql /var/www/bookshop.sql
 
 # ตั้งค่าสิทธิ์โฟลเดอร์สำหรับอัปโหลดภาพปกหนังสือ
 RUN chown -R www-data:www-data /var/www/html \
