@@ -1,4 +1,4 @@
-// เปิด/ปิดเมนูบนมือถือ (ดัดแปลงจาก mpage.js ของ Lab)
+// สลับการแสดงผลเมนูนำทางบนหน้าจอมือถือ
 function toggle_visibility(id) {
   var e = document.getElementById(id);
   if (e.style.display == 'block')
@@ -7,7 +7,7 @@ function toggle_visibility(id) {
     e.style.display = 'block';
 }
 
-// เปลี่ยนขนาดจอ: จอกว้างแสดงเมนูด้านข้างเสมอ จอมือถือซ่อนเมนูไว้ก่อน
+// ปรับสถานะเมนูอัตโนมัติเมื่อเปลี่ยนขนาดหน้าจอ (จอ >= 768px แสดงเมนูด้านข้างเสมอ)
 window.onresize = function () {
   var e = document.getElementById("menu");
   if (window.innerWidth >= 768)

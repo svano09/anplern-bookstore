@@ -1,8 +1,4 @@
-// ฟังก์ชัน JavaScript ที่ใช้หลายหน้า
-
-// ---------- Ajax: หยิบหนังสือใส่ตะกร้าโดยไม่ต้องโหลดหน้าใหม่ ----------
-//   ส่ง POST ไป cart-action.php แล้วรับผลลัพธ์กลับมาเป็น JSON
-//   เช่น {"ok":true,"count":3,"message":"เพิ่ม ... ลงตะกร้าแล้ว"}
+// เพิ่มหนังสือลงตะกร้าด้วย Ajax (XMLHttpRequest) และอัปเดตจำนวนบนไอคอนตะกร้าทันที
 function addToCart(book_id, qty) {
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function () {
@@ -11,7 +7,7 @@ function addToCart(book_id, qty) {
       if (result.ok) {
         var count = document.getElementById("cart-count");
         count.innerHTML = result.count;
-        count.className = "count bump";            // เปลี่ยน style ให้ตัวเลขเด้ง
+        count.className = "count bump";
         setTimeout(function () { count.className = "count"; }, 600);
       }
       showToast(result.message, result.ok);
@@ -20,10 +16,10 @@ function addToCart(book_id, qty) {
   xhr.open("POST", "cart-action.php");
   xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.send("action=add&ajax=1&book_id=" + book_id + "&qty=" + qty + "&token=" + TOKEN);
-  return false;   // ไม่ให้ฟอร์มส่งข้อมูลแบบโหลดหน้าใหม่
+  return false;
 }
 
-// กล่องข้อความแจ้งเตือนมุมจอ: สร้าง element ใหม่ด้วย DOM แล้วลบทิ้งหลัง 3 วินาที
+// แสดงข้อความแจ้งเตือนมุมขวาล่างของจอ แล้วลบออกอัตโนมัติหลัง 3 วินาที
 function showToast(text, ok) {
   var box = document.getElementById("toast");
   if (box == null) {

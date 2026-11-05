@@ -4,12 +4,25 @@ require_login();
 $title = "ข้อมูลส่วนตัว";
 include "header.php";
 
-$stmt = $pdo->prepare("SELECT m.first_name, m.last_name, m.email, m.phone, m.address, m.role, m.created_at,
-                              COUNT(o.order_id) AS order_count, IFNULL(SUM(o.net_total), 0) AS total_spent
-                       FROM member m
-                       LEFT JOIN orders o ON o.member_id = m.member_id AND o.status <> 'cancelled'
-                       WHERE m.member_id = ?
-                       GROUP BY m.member_id");
+$sql = "
+    SELECT
+        m.first_name,
+        m.last_name,
+        m.email,
+        m.phone,
+        m.address,
+        m.role,
+        m.created_at,
+        COUNT(o.order_id) AS order_count,
+        IFNULL(SUM(o.net_total), 0) AS total_spent
+    FROM member m
+    LEFT JOIN orders o
+        ON o.member_id = m.member_id
+       AND o.status <> 'cancelled'
+    WHERE m.member_id = ?
+    GROUP BY m.member_id
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $_SESSION["member_id"]);
 $stmt->execute();
 $me = $stmt->fetch();

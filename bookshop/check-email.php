@@ -1,7 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// Ajax: ตรวจว่าอีเมลนี้มีผู้ใช้แล้วหรือยัง (เรียกจากหน้าสมัครสมาชิก)
-//   ตอบกลับเป็นข้อความธรรมดา (responseText): okay = ใช้ได้, taken = มีผู้ใช้แล้ว, invalid = รูปแบบผิด
+// ตรวจสอบว่าอีเมลมีผู้ใช้งานในระบบแล้วหรือไม่ (ส่งกลับเป็นข้อความ okay / taken / invalid)
 $email = trim($_GET["email"] ?? "");
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {

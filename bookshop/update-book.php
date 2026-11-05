@@ -1,6 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// Update: แก้ไขข้อมูลหนังสือตามรหัสที่ส่งมาแบบ hidden
+// อัปเดตข้อมูลหนังสือและเปลี่ยนไฟล์ภาพปกหากมีการอัปโหลดใหม่
 require_admin();
 check_csrf();
 $book_id = (int)($_POST["book_id"] ?? 0);
@@ -12,9 +12,19 @@ if ($errors) {
     exit;
 }
 
-$stmt = $pdo->prepare("UPDATE book SET title = ?, author = ?, category_id = ?, price = ?, stock = ?,
-                              description = ?, added_date = ?
-                       WHERE book_id = ?");
+$sql = "
+    UPDATE book
+    SET
+        title       = ?,
+        author      = ?,
+        category_id = ?,
+        price       = ?,
+        stock       = ?,
+        description = ?,
+        added_date  = ?
+    WHERE book_id = ?
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $_POST["title"]);
 $stmt->bindParam(2, $_POST["author"]);
 $stmt->bindParam(3, $_POST["category_id"]);
@@ -25,7 +35,6 @@ $stmt->bindParam(7, $_POST["added_date"]);
 $stmt->bindParam(8, $book_id);
 $stmt->execute();
 
-// ถ้าเลือกภาพปกใหม่ ให้เขียนทับไฟล์เดิม img/<book_id>.jpg
 $msg = save_cover($book_id, "") ? "updated" : "bad_cover";
 header("location: list-book.php?msg=" . $msg . "&book_id=" . $book_id);
 ?>

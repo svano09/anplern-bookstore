@@ -4,30 +4,44 @@ require_admin();
 $title = "สมาชิก";
 include "header.php";
 
-// สมาชิกทั้งหมดพร้อมจำนวนคำสั่งซื้อและยอดซื้อสะสม (คลิกจำนวนคำสั่งซื้อเพื่อดูรายการของคนนั้น)
 $keyword  = $_GET["q"] ?? "";
 $like     = "%" . $keyword . "%";
 $page     = max(1, (int)($_GET["page"] ?? 1));
 $per_page = 10;
 
-$count = $pdo->prepare("SELECT COUNT(*) FROM member
-                        WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR email LIKE ?");
+$sql_count = "
+    SELECT COUNT(*)
+    FROM member
+    WHERE CONCAT(first_name, ' ', last_name) LIKE ?
+       OR email LIKE ?
+";
+$count = $pdo->prepare($sql_count);
 $count->execute([$like, $like]);
 $total = $count->fetchColumn();
 $total_pages = max(1, ceil($total / $per_page));
 $page = min($page, $total_pages);
 
-$stmt = $pdo->prepare("SELECT m.member_id, CONCAT(m.first_name, ' ', m.last_name) AS name, m.email, m.phone,
-                              m.role, m.created_at,
-                              COUNT(o.order_id) AS order_count,
-                              IFNULL(SUM(CASE WHEN o.status <> 'cancelled' THEN o.net_total END), 0) AS total_spent,
-                              MAX(o.order_date) AS last_order
-                       FROM member m
-                       LEFT JOIN orders o ON o.member_id = m.member_id
-                       WHERE CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR m.email LIKE ?
-                       GROUP BY m.member_id
-                       ORDER BY m.role, total_spent DESC
-                       LIMIT ? OFFSET ?");
+// ดึงรายชื่อสมาชิกพร้อมจำนวนคำสั่งซื้อและยอดซื้อสะสมสุทธิ (ไม่นับรายการที่ยกเลิก)
+$sql = "
+    SELECT
+        m.member_id,
+        CONCAT(m.first_name, ' ', m.last_name) AS name,
+        m.email,
+        m.phone,
+        m.role,
+        m.created_at,
+        COUNT(o.order_id) AS order_count,
+        IFNULL(SUM(CASE WHEN o.status <> 'cancelled' THEN o.net_total END), 0) AS total_spent,
+        MAX(o.order_date) AS last_order
+    FROM member m
+    LEFT JOIN orders o ON o.member_id = m.member_id
+    WHERE CONCAT(m.first_name, ' ', m.last_name) LIKE ?
+       OR m.email LIKE ?
+    GROUP BY m.member_id
+    ORDER BY m.role, total_spent DESC
+    LIMIT ? OFFSET ?
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $like);
 $stmt->bindParam(2, $like);
 $stmt->bindValue(3, $per_page, PDO::PARAM_INT);

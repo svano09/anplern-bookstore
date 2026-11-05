@@ -4,12 +4,15 @@ require_admin();
 $title = "แดชบอร์ดผู้ดูแลระบบ";
 include "header.php";
 
-// ตัวเลขที่ต้องดูแลตอนนี้ (ไม่ขึ้นกับตัวกรอง)
-$stmt = $pdo->prepare("SELECT
-    (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending_orders,
-    (SELECT COUNT(*) FROM orders WHERE status = 'packing') AS packing_orders,
-    (SELECT COUNT(*) FROM book WHERE stock <= 5) AS low_stock,
-    (SELECT COUNT(*) FROM member WHERE role = 'customer') AS customers");
+// สรุปจำนวนรายการที่ต้องดูแลในปัจจุบัน
+$todoSql = "
+    SELECT
+        (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending_orders,
+        (SELECT COUNT(*) FROM orders WHERE status = 'packing') AS packing_orders,
+        (SELECT COUNT(*) FROM book WHERE stock <= 5) AS low_stock,
+        (SELECT COUNT(*) FROM member WHERE role = 'customer') AS customers
+";
+$stmt = $pdo->prepare($todoSql);
 $stmt->execute();
 $todo = $stmt->fetch();
 
@@ -20,7 +23,7 @@ $cats->execute();
 <script>
   var charts = {};
 
-  // ดึงข้อมูลสถิติจาก report-data.php (Fetch API) ตามตัวกรอง แล้ววาดกราฟใหม่โดยไม่โหลดหน้า
+  // ดึงข้อมูลสถิติจาก report-data.php ตามตัวกรอง แล้ววาดกราฟและตารางใหม่โดยไม่ต้องโหลดหน้า
   async function loadReport() {
     var from = document.getElementById("from").value;
     var to = document.getElementById("to").value;
@@ -28,8 +31,8 @@ $cats->execute();
     document.getElementById("report-status").innerHTML = "กำลังโหลดข้อมูล...";
 
     var response = await fetch("report-data.php?from=" + from + "&to=" + to + "&category=" + category);
-    var rawData = await response.text();      // อ่านผลลัพธ์ (ข้อความรูปแบบ JSON)
-    var data = JSON.parse(rawData);            // แปลงเป็น object ของ JavaScript
+    var rawData = await response.text();
+    var data = JSON.parse(rawData);
 
     showSummary(data.summary);
     showMonthly(data.monthly);
@@ -49,7 +52,6 @@ $cats->execute();
     document.getElementById("sum-revenue").innerHTML = baht(s.revenue);
     document.getElementById("sum-orders").innerHTML = orders;
     document.getElementById("sum-books").innerHTML = s.books;
-    // ประมวลผลจาก JSON: ยอดเฉลี่ยต่อคำสั่งซื้อ
     document.getElementById("sum-avg").innerHTML = orders ? baht(s.revenue / orders) : "-";
   }
 
@@ -58,7 +60,7 @@ $cats->execute();
     charts[id] = new Chart(document.getElementById(id), config);
   }
 
-  // ยอดขายรายเดือน: กราฟแท่ง + ตารางที่คำนวณอัตราเติบโตจากเดือนก่อนหน้า
+  // ยอดขายรายเดือน: กราฟแท่ง + ตารางที่คำนวณอัตราการเติบโตเทียบกับเดือนก่อนหน้า
   function showMonthly(rows) {
     draw("chart-monthly", {
       type: "bar",
@@ -88,7 +90,7 @@ $cats->execute();
     }
   }
 
-  // ยอดขายแยกหมวด: กราฟโดนัท + สัดส่วน % ที่คำนวณจากข้อมูล JSON
+  // ยอดขายแยกหมวด: กราฟโดนัทพร้อมคำนวณสัดส่วนเป็นเปอร์เซ็นต์
   function showCategories(rows) {
     var total = 0;
     for (var i = 0; i < rows.length; i++) total += Number(rows[i].revenue);

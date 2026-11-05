@@ -4,22 +4,40 @@ require_admin();
 $title = "จัดการคูปองส่วนลด";
 include "header.php";
 
-// Query 6.2: คูปองทั้งหมด พร้อมจำนวนครั้งที่ใช้ สิทธิ์คงเหลือ และสถานะ
-$sql = "SELECT c.coupon_code, c.description, c.discount_type, c.discount_value, c.max_discount,
-       c.min_spend, c.start_date, c.end_date, c.usage_limit,
-       COUNT(o.order_id) AS used_count,
-       c.usage_limit - COUNT(o.order_id) AS remaining,
-       IFNULL(SUM(o.coupon_discount), 0) AS discount_given,
-       CASE
-         WHEN CURDATE() < c.start_date           THEN 'ยังไม่เริ่ม'
-         WHEN CURDATE() > c.end_date             THEN 'หมดอายุ'
-         WHEN COUNT(o.order_id) >= c.usage_limit THEN 'สิทธิ์เต็ม'
-         ELSE 'ใช้งานได้'
-       END AS coupon_status
+// ดึงข้อมูลคูปองทั้งหมด พร้อมจำนวนครั้งที่ถูกใช้งาน สิทธิ์คงเหลือ และสถานะปัจจุบัน
+$sql = "SELECT
+    c.coupon_code,
+    c.description,
+    c.discount_type,
+    c.discount_value,
+    c.max_discount,
+    c.min_spend,
+    c.start_date,
+    c.end_date,
+    c.usage_limit,
+    COUNT(o.order_id) AS used_count,
+    c.usage_limit - COUNT(o.order_id) AS remaining,
+    IFNULL(SUM(o.coupon_discount), 0) AS discount_given,
+    CASE
+        WHEN CURDATE() < c.start_date           THEN 'ยังไม่เริ่ม'
+        WHEN CURDATE() > c.end_date             THEN 'หมดอายุ'
+        WHEN COUNT(o.order_id) >= c.usage_limit THEN 'สิทธิ์เต็ม'
+        ELSE 'ใช้งานได้'
+    END AS coupon_status
 FROM coupon c
-LEFT JOIN orders o ON o.coupon_code = c.coupon_code AND o.status <> 'cancelled'
-GROUP BY c.coupon_code, c.description, c.discount_type, c.discount_value, c.max_discount,
-         c.min_spend, c.start_date, c.end_date, c.usage_limit
+LEFT JOIN orders o
+    ON o.coupon_code = c.coupon_code
+   AND o.status <> 'cancelled'
+GROUP BY
+    c.coupon_code,
+    c.description,
+    c.discount_type,
+    c.discount_value,
+    c.max_discount,
+    c.min_spend,
+    c.start_date,
+    c.end_date,
+    c.usage_limit
 ORDER BY c.end_date DESC, c.coupon_code";
 
 $stmt = $pdo->prepare($sql);
@@ -67,7 +85,7 @@ $status_class = ["ใช้งานได้" => "ok", "ยังไม่เ�
 </div>
 
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 6.2 คูปองทั้งหมด)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php include "footer.php"; ?>

@@ -1,6 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// บันทึกโปรโมชั่น (เพิ่ม/แก้ไข) และเปิด-ปิดการใช้งาน
+// บันทึกข้อมูลโปรโมชั่น (เพิ่ม/แก้ไข) หรือสลับสถานะการเปิด-ปิดใช้งาน
 require_admin();
 check_csrf();
 $promo_id = (int)($_POST["promo_id"] ?? 0);
@@ -14,7 +14,7 @@ if (($_POST["action"] ?? "") == "toggle") {
     exit;
 }
 
-// ตรวจข้อมูลฝั่งเซิร์ฟเวอร์ แล้วเก็บเฉพาะเงื่อนไขของประเภทที่เลือก (ช่องอื่นเป็น NULL)
+// เก็บเฉพาะค่าเงื่อนไขที่ตรงกับประเภทโปรโมชั่นที่เลือก ส่วนประเภทอื่นกำหนดเป็น NULL
 $type = $_POST["promo_type"] ?? "";
 $data = [
     "promo_name"        => trim($_POST["promo_name"] ?? ""),
@@ -42,6 +42,7 @@ if ($type == "clearance" && (!ctype_digit((string)$data["min_days_in_stock"]) ||
     $errors[] = "กรุณากรอกจำนวนวันในคลังและจำนวนคงเหลือสูงสุด";
 if (!strtotime($data["start_date"]) || !strtotime($data["end_date"]) || $data["end_date"] < $data["start_date"])
     $errors[] = "ช่วงวันที่ไม่ถูกต้อง (วันสิ้นสุดต้องไม่ก่อนวันเริ่ม)";
+
 if ($errors) {
     flash("error", implode(" / ", $errors));
     header("location: promotion-form.php" . ($promo_id ? "?promo_id=" . $promo_id : ""));
@@ -49,15 +50,40 @@ if ($errors) {
 }
 
 if ($promo_id) {
-    $stmt = $pdo->prepare("UPDATE promotion SET promo_name = ?, promo_type = ?, discount_percent = ?, min_spend = ?,
-                                  category_id = ?, min_days_in_stock = ?, max_stock = ?, start_date = ?, end_date = ?, is_active = ?
-                           WHERE promo_id = ?");
+    $sql = "
+        UPDATE promotion
+        SET
+            promo_name        = ?,
+            promo_type        = ?,
+            discount_percent  = ?,
+            min_spend         = ?,
+            category_id       = ?,
+            min_days_in_stock = ?,
+            max_stock         = ?,
+            start_date        = ?,
+            end_date          = ?,
+            is_active         = ?
+        WHERE promo_id = ?
+    ";
+    $stmt = $pdo->prepare($sql);
     $stmt->execute(array_merge(array_values($data), [$promo_id]));
     flash("ok", "แก้ไขโปรโมชั่น \"" . $data["promo_name"] . "\" แล้ว");
 } else {
-    $stmt = $pdo->prepare("INSERT INTO promotion (promo_name, promo_type, discount_percent, min_spend, category_id,
-                                                  min_days_in_stock, max_stock, start_date, end_date, is_active)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $sql = "
+        INSERT INTO promotion (
+            promo_name,
+            promo_type,
+            discount_percent,
+            min_spend,
+            category_id,
+            min_days_in_stock,
+            max_stock,
+            start_date,
+            end_date,
+            is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ";
+    $stmt = $pdo->prepare($sql);
     $stmt->execute(array_values($data));
     flash("ok", "สร้างโปรโมชั่น \"" . $data["promo_name"] . "\" แล้ว");
 }

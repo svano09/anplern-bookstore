@@ -4,26 +4,39 @@ require_admin();
 $title = "จัดการข้อมูลหนังสือ (CRUD)";
 include "header.php";
 
-// Read: แสดงหนังสือ + ค้นหาตามชื่อเรื่อง/ผู้แต่ง + กรองเฉพาะที่ใกล้หมด + แบ่งหน้าละ 10 เล่ม
 $keyword  = $_GET["q"] ?? "";
 $low      = !empty($_GET["low"]) ? 1 : 0;
 $like     = "%" . $keyword . "%";
 $page     = max(1, (int)($_GET["page"] ?? 1));
 $per_page = 10;
 
-$where = "WHERE (b.title LIKE ? OR b.author LIKE ?) AND (b.stock <= 5 OR ? = 0)";
+$where = "
+    WHERE (b.title LIKE ? OR b.author LIKE ?)
+      AND (b.stock <= 5 OR ? = 0)
+";
+
 $count = $pdo->prepare("SELECT COUNT(*) FROM book b $where");
 $count->execute([$like, $like, $low]);
 $total = $count->fetchColumn();
 $total_pages = max(1, ceil($total / $per_page));
 $page = min($page, $total_pages);
 
-$stmt = $pdo->prepare("SELECT b.book_id, b.title, b.author, c.category_name, b.price, b.stock, b.added_date
-                       FROM book b
-                       JOIN category c ON c.category_id = b.category_id
-                       $where
-                       ORDER BY b.book_id
-                       LIMIT ? OFFSET ?");
+$sql = "
+    SELECT
+        b.book_id,
+        b.title,
+        b.author,
+        c.category_name,
+        b.price,
+        b.stock,
+        b.added_date
+    FROM book b
+    JOIN category c ON c.category_id = b.category_id
+    $where
+    ORDER BY b.book_id
+    LIMIT ? OFFSET ?
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $like);
 $stmt->bindParam(2, $like);
 $stmt->bindParam(3, $low);

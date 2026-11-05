@@ -4,23 +4,39 @@ require_admin();
 $title = "หนังสือขายดี 3 อันดับแรกของแต่ละหมวด";
 include "header.php";
 
-// Query 4: จัดอันดับหนังสือขายดีภายในแต่ละหมวด (Window Function)
-//   ROW_NUMBER() ... PARTITION BY หมวด  -> เริ่มนับอันดับ 1 ใหม่ทุกหมวด
-//   SUM(SUM(...)) OVER (PARTITION BY หมวด) -> ยอดขายรวมทั้งหมวด เพื่อคิดสัดส่วน %
-$sql = "SELECT category_name, rank_no, book_id, title, qty_sold, revenue, pct_of_category
+// จัดอันดับหนังสือขายดีภายในแต่ละหมวดด้วย Window Function:
+//   ROW_NUMBER() OVER (PARTITION BY category_id ...) -> เริ่มนับอันดับ 1 ใหม่ทุกหมวด
+//   SUM(SUM(...)) OVER (PARTITION BY category_id)    -> ยอดขายรวมทั้งหมวดเพื่อคิดสัดส่วน %
+$sql = "SELECT
+    category_name,
+    rank_no,
+    book_id,
+    title,
+    qty_sold,
+    revenue,
+    pct_of_category
 FROM (
-    SELECT c.category_id, c.category_name, b.book_id, b.title,
-           SUM(oi.quantity) AS qty_sold,
-           SUM(oi.quantity * oi.unit_price - oi.discount_amount) AS revenue,
-           ROUND(100 * SUM(oi.quantity * oi.unit_price - oi.discount_amount)
-                 / SUM(SUM(oi.quantity * oi.unit_price - oi.discount_amount))
-                   OVER (PARTITION BY c.category_id), 1) AS pct_of_category,
-           ROW_NUMBER() OVER (PARTITION BY c.category_id
-                              ORDER BY SUM(oi.quantity) DESC,
-                                       SUM(oi.quantity * oi.unit_price - oi.discount_amount) DESC) AS rank_no
+    SELECT
+        c.category_id,
+        c.category_name,
+        b.book_id,
+        b.title,
+        SUM(oi.quantity) AS qty_sold,
+        SUM(oi.quantity * oi.unit_price - oi.discount_amount) AS revenue,
+        ROUND(
+            100 * SUM(oi.quantity * oi.unit_price - oi.discount_amount)
+            / SUM(SUM(oi.quantity * oi.unit_price - oi.discount_amount)) OVER (PARTITION BY c.category_id),
+            1
+        ) AS pct_of_category,
+        ROW_NUMBER() OVER (
+            PARTITION BY c.category_id
+            ORDER BY
+                SUM(oi.quantity) DESC,
+                SUM(oi.quantity * oi.unit_price - oi.discount_amount) DESC
+        ) AS rank_no
     FROM order_item oi
-    JOIN orders o   ON o.order_id = oi.order_id
-    JOIN book b     ON b.book_id = oi.book_id
+    JOIN orders o ON o.order_id = oi.order_id
+    JOIN book b ON b.book_id = oi.book_id
     JOIN category c ON c.category_id = b.category_id
     WHERE o.status <> 'cancelled'
     GROUP BY c.category_id, c.category_name, b.book_id, b.title
@@ -57,7 +73,7 @@ $last_category = "";
 </div>
 
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 4)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php include "footer.php"; ?>

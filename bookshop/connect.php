@@ -1,6 +1,5 @@
 <?php
-// เชื่อมต่อฐานข้อมูลด้วย PDO (รูปแบบเดียวกับ Lecture 7-8) และเริ่มใช้ Session (Lecture 9)
-// รองรับทั้ง XAMPP ในเครื่อง, Docker, Host 193, และ Cloud (Koyeb / Render / TiDB Cloud)
+// ตั้งค่าการเชื่อมต่อฐานข้อมูลด้วย PDO (รองรับทั้ง Local, Docker และ Cloud DB)
 $db_host = getenv("DB_HOST") ?: "localhost";
 $db_port = getenv("DB_PORT") ?: "3306";
 $db_name = getenv("DB_NAME") ?: "bookshop";
@@ -13,7 +12,7 @@ $options = [
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ];
 
-// ถ้าเชื่อมต่อกับ TiDB Cloud หรือ Aiven ที่ต้องใช้ SSL
+// เปิดใช้งาน SSL อัตโนมัติเมื่อเชื่อมต่อกับ Cloud Database (เช่น TiDB Cloud / Aiven)
 $is_cloud_db = (getenv("DB_SSL") === "1")
     || (strpos($db_host, "tidbcloud.com") !== false)
     || (strpos($db_host, "aivencloud.com") !== false);
@@ -28,7 +27,6 @@ if ($is_cloud_db) {
 try {
     $pdo = new PDO($dsn, $db_user, $db_pass, $options);
 } catch (PDOException $e) {
-    // กรณีที่ต่อ SSL ไม่ผ่าน ลองต่อแบบธรรมดา
     if (!empty($options[PDO::MYSQL_ATTR_SSL_CA])) {
         unset($options[PDO::MYSQL_ATTR_SSL_CA], $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT]);
         $pdo = new PDO($dsn, $db_user, $db_pass, $options);
@@ -37,8 +35,7 @@ try {
     }
 }
 
-// Initialize a session object: ทุกหน้าเรียก session_start() ผ่านไฟล์นี้
-// (cookie ของ session อ่านด้วย JavaScript ไม่ได้ และส่งเฉพาะเว็บเดียวกัน)
+// เริ่มต้นใช้งาน Session พร้อมป้องกันการเข้าถึง Cookie จากฝั่ง JavaScript (HttpOnly)
 ini_set("session.cookie_httponly", 1);
 ini_set("session.cookie_samesite", "Lax");
 session_start();

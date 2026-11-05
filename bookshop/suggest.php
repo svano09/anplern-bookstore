@@ -1,10 +1,15 @@
 <?php include "connect.php"; ?>
 <?php
-// Ajax: ค้นหาหนังสือจากฐานข้อมูลขณะพิมพ์ ตอบกลับเป็น HTML (รายการ 5 เล่มแรกที่ตรงกับคำค้น)
+// ค้นหาหนังสือจากฐานข้อมูลตามคำค้นและส่งกลับเป็น HTML สำหรับแสดงในกล่องแนะนำ
 $like = "%" . ($_GET["keyword"] ?? "") . "%";
-$stmt = $pdo->prepare("SELECT book_id, title, author, price FROM book
-                       WHERE title LIKE ? OR author LIKE ?
-                       ORDER BY title LIMIT 5");
+$sql = "
+    SELECT book_id, title, author, price
+    FROM book
+    WHERE title LIKE ? OR author LIKE ?
+    ORDER BY title
+    LIMIT 5
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $like);
 $stmt->bindParam(2, $like);
 $stmt->execute();

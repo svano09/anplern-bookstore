@@ -1,7 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// ผู้ดูแลอัปเดตสถานะคำสั่งซื้อ / ออกหมายเลขพัสดุ แล้วบันทึกประวัติลง order_status_log
-//   ยกเลิกคำสั่งซื้อ: คืนสต็อกหนังสือ และเปลี่ยนการชำระเงินเป็นคืนเงินแล้ว
+// อัปเดตสถานะคำสั่งซื้อ บันทึกประวัติลง order_status_log และคืนสต็อกกรณีถูกยกเลิก
 require_admin();
 check_csrf();
 
@@ -16,7 +15,6 @@ $stmt->bindParam(1, $order_id);
 $stmt->execute();
 $order = $stmt->fetch();
 
-// ลำดับสถานะที่เปลี่ยนได้อยู่ใน $next_status (functions.php)
 $error = "";
 if (!$order)
     $error = "ไม่พบคำสั่งซื้อ";
@@ -24,13 +22,14 @@ else if (!in_array($status, $next_status[$order["status"]] ?? []))
     $error = "เปลี่ยนจาก \"" . $status_th[$order["status"]] . "\" เป็นสถานะที่เลือกไม่ได้";
 else if ($status == "shipped" && (!in_array($carrier, $carriers) || !preg_match('/^[A-Z0-9]{8,20}$/', $tracking_no)))
     $error = "กรุณาเลือกบริษัทขนส่งและกรอกหมายเลขพัสดุ (ตัวพิมพ์ใหญ่/ตัวเลข 8-20 ตัว)";
+
 if ($error) {
     flash("error", $error);
     header("location: order-detail.php?order_id=" . $order_id);
     exit;
 }
 
-if ($status != "shipped") {   // สถานะอื่นใช้ข้อมูลขนส่งเดิม
+if ($status != "shipped") {
     $carrier = $order["carrier"];
     $tracking_no = $order["tracking_no"];
 }
@@ -43,19 +42,36 @@ $default_note = [
 $note = $default_note[$status] . ($note != "" ? " (" . $note . ")" : "");
 
 $pdo->beginTransaction();
-$stmt = $pdo->prepare("UPDATE orders SET status = ?, carrier = ?, tracking_no = ? WHERE order_id = ?");
+
+$sql_update = "
+    UPDATE orders
+    SET status = ?, carrier = ?, tracking_no = ?
+    WHERE order_id = ?
+";
+$stmt = $pdo->prepare($sql_update);
 $stmt->execute([$status, $carrier, $tracking_no, $order_id]);
 
-$stmt = $pdo->prepare("INSERT INTO order_status_log (order_id, status, note, changed_at, changed_by) VALUES (?, ?, ?, NOW(), ?)");
+$sql_log = "
+    INSERT INTO order_status_log (order_id, status, note, changed_at, changed_by)
+    VALUES (?, ?, ?, NOW(), ?)
+";
+$stmt = $pdo->prepare($sql_log);
 $stmt->execute([$order_id, $status, $note, $_SESSION["member_id"]]);
 
 if ($status == "cancelled") {
-    $stmt = $pdo->prepare("UPDATE book b JOIN order_item oi ON oi.book_id = b.book_id
-                           SET b.stock = b.stock + oi.quantity WHERE oi.order_id = ?");
+    $sql_restock = "
+        UPDATE book b
+        JOIN order_item oi ON oi.book_id = b.book_id
+        SET b.stock = b.stock + oi.quantity
+        WHERE oi.order_id = ?
+    ";
+    $stmt = $pdo->prepare($sql_restock);
     $stmt->execute([$order_id]);
+
     $stmt = $pdo->prepare("UPDATE payment SET status = 'refunded' WHERE order_id = ?");
     $stmt->execute([$order_id]);
 }
+
 $pdo->commit();
 
 flash("ok", "อัปเดตคำสั่งซื้อ #" . $order_id . " เป็น \"" . $status_th[$status] . "\" แล้ว");

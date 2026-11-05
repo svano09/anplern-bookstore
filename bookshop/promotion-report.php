@@ -4,46 +4,64 @@ require_admin();
 $title = "สรุปผลโปรโมชั่น";
 include "header.php";
 
-// Query 5: ผลของโปรโมชั่นทุกแคมเปญ (ใช้ไปกี่คำสั่งซื้อ / กี่เล่ม / ลดไปเท่าไร)
-//   โปรฯ ระดับสินค้า (seasonal, clearance) เก็บใน order_item.promo_id
-//   โปรฯ ขั้นบันได (tier)                   เก็บใน orders.promo_id
-//   -> สรุปแยก 2 ส่วนแล้วรวมด้วย UNION ALL ก่อน LEFT JOIN กับ promotion
-$sql = "SELECT p.promo_id, p.promo_name, p.promo_type, p.discount_percent,
-       CASE p.promo_type
-         WHEN 'tier'     THEN CONCAT('ยอดซื้อตั้งแต่ ', FORMAT(p.min_spend, 0), ' บาท')
-         WHEN 'seasonal' THEN IFNULL(c.category_name, 'ทุกหมวด')
-         ELSE CONCAT('อยู่ในคลัง >= ', p.min_days_in_stock, ' วัน และเหลือ <= ', p.max_stock, ' เล่ม')
-       END AS conditions,
-       p.start_date, p.end_date,
-       CASE
-         WHEN p.is_active = 0           THEN 'ปิดใช้งาน'
-         WHEN CURDATE() < p.start_date  THEN 'ยังไม่เริ่ม'
-         WHEN CURDATE() > p.end_date    THEN 'สิ้นสุดแล้ว'
-         ELSE 'กำลังใช้งาน'
-       END AS promo_status,
-       IFNULL(u.order_count, 0) AS order_count,
-       IFNULL(u.book_count, 0) AS book_count,
-       IFNULL(u.discount_total, 0) AS discount_total
+// สรุปผลการสั่งซื้อและยอดส่วนลดของโปรโมชั่นทุกแคมเปญ
+// รวมสถิติของโปรฯ ระดับสินค้า (จาก order_item) และโปรฯ ขั้นบันได (จาก orders) ด้วย UNION ALL
+$sql = "SELECT
+    p.promo_id,
+    p.promo_name,
+    p.promo_type,
+    p.discount_percent,
+    CASE p.promo_type
+        WHEN 'tier'     THEN CONCAT('ยอดซื้อตั้งแต่ ', FORMAT(p.min_spend, 0), ' บาท')
+        WHEN 'seasonal' THEN IFNULL(c.category_name, 'ทุกหมวด')
+        ELSE CONCAT('อยู่ในคลัง >= ', p.min_days_in_stock, ' วัน และเหลือ <= ', p.max_stock, ' เล่ม')
+    END AS conditions,
+    p.start_date,
+    p.end_date,
+    CASE
+        WHEN p.is_active = 0          THEN 'ปิดใช้งาน'
+        WHEN CURDATE() < p.start_date THEN 'ยังไม่เริ่ม'
+        WHEN CURDATE() > p.end_date   THEN 'สิ้นสุดแล้ว'
+        ELSE 'กำลังใช้งาน'
+    END AS promo_status,
+    IFNULL(u.order_count, 0) AS order_count,
+    IFNULL(u.book_count, 0) AS book_count,
+    IFNULL(u.discount_total, 0) AS discount_total
 FROM promotion p
 LEFT JOIN category c ON c.category_id = p.category_id
 LEFT JOIN (
-    SELECT oi.promo_id,
-           COUNT(DISTINCT oi.order_id) AS order_count,
-           SUM(oi.quantity) AS book_count,
-           SUM(oi.discount_amount) AS discount_total
+    SELECT
+        oi.promo_id,
+        COUNT(DISTINCT oi.order_id) AS order_count,
+        SUM(oi.quantity) AS book_count,
+        SUM(oi.discount_amount) AS discount_total
     FROM order_item oi
     JOIN orders o ON o.order_id = oi.order_id
-    WHERE o.status <> 'cancelled' AND oi.promo_id IS NOT NULL
+    WHERE o.status <> 'cancelled'
+      AND oi.promo_id IS NOT NULL
     GROUP BY oi.promo_id
+
     UNION ALL
-    SELECT o.promo_id, COUNT(*), SUM(i.book_qty), SUM(o.tier_discount)
+
+    SELECT
+        o.promo_id,
+        COUNT(*) AS order_count,
+        SUM(i.book_qty) AS book_count,
+        SUM(o.tier_discount) AS discount_total
     FROM orders o
-    JOIN (SELECT order_id, SUM(quantity) AS book_qty
-          FROM order_item GROUP BY order_id) i ON i.order_id = o.order_id
-    WHERE o.status <> 'cancelled' AND o.promo_id IS NOT NULL
+    JOIN (
+        SELECT order_id, SUM(quantity) AS book_qty
+        FROM order_item
+        GROUP BY order_id
+    ) i ON i.order_id = o.order_id
+    WHERE o.status <> 'cancelled'
+      AND o.promo_id IS NOT NULL
     GROUP BY o.promo_id
 ) u ON u.promo_id = p.promo_id
-ORDER BY FIELD(p.promo_type, 'tier', 'seasonal', 'clearance'), p.start_date, p.promo_id";
+ORDER BY
+    FIELD(p.promo_type, 'tier', 'seasonal', 'clearance'),
+    p.start_date,
+    p.promo_id";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
@@ -85,7 +103,7 @@ $total = 0;
 </div>
 
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 5)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php include "footer.php"; ?>

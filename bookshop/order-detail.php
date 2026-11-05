@@ -5,17 +5,28 @@ $order_id = (int)($_GET["order_id"] ?? 0);
 $title = "รายละเอียดคำสั่งซื้อ #" . $order_id;
 include "header.php";
 
-// 1. ข้อมูลคำสั่งซื้อ + ลูกค้า + ชื่อโปรฯ ขั้นบันได + การชำระเงิน
-//    ลูกค้าดูได้เฉพาะคำสั่งซื้อของตัวเอง ผู้ดูแลดูได้ทุกคำสั่งซื้อ
-$stmt = $pdo->prepare("SELECT o.*, CONCAT(m.first_name, ' ', m.last_name) AS customer, m.email, m.phone,
-                              p.promo_name AS tier_name,
-                              pay.method, pay.status AS pay_status, pay.ref_no, pay.card_last4, pay.paid_at
-                       FROM orders o
-                       JOIN member m ON m.member_id = o.member_id
-                       LEFT JOIN promotion p ON p.promo_id = o.promo_id
-                       LEFT JOIN payment pay ON pay.order_id = o.order_id
-                       WHERE o.order_id = ? AND (o.member_id = ? OR ? = 1)");
+// ดึงข้อมูลหลักของคำสั่งซื้อ ข้อมูลลูกค้า โปรโมชั่นขั้นบันได และรายละเอียดการชำระเงิน
+$sql_order = "
+    SELECT
+        o.*,
+        CONCAT(m.first_name, ' ', m.last_name) AS customer,
+        m.email,
+        m.phone,
+        p.promo_name AS tier_name,
+        pay.method,
+        pay.status AS pay_status,
+        pay.ref_no,
+        pay.card_last4,
+        pay.paid_at
+    FROM orders o
+    JOIN member m ON m.member_id = o.member_id
+    LEFT JOIN promotion p ON p.promo_id = o.promo_id
+    LEFT JOIN payment pay ON pay.order_id = o.order_id
+    WHERE o.order_id = ?
+      AND (o.member_id = ? OR ? = 1)
+";
 $is_admin = is_admin() ? 1 : 0;
+$stmt = $pdo->prepare($sql_order);
 $stmt->bindParam(1, $order_id);
 $stmt->bindParam(2, $_SESSION["member_id"]);
 $stmt->bindParam(3, $is_admin);
@@ -28,32 +39,45 @@ if (!$order) {
     exit;
 }
 
-// 2. รายการหนังสือ พร้อมโปรฯ ระดับสินค้าที่ได้รับ
-$items = $pdo->prepare("SELECT b.book_id, b.title, oi.quantity, oi.unit_price, oi.discount_amount,
-                               oi.quantity * oi.unit_price - oi.discount_amount AS line_total,
-                               p.promo_name
-                        FROM order_item oi
-                        JOIN book b ON b.book_id = oi.book_id
-                        LEFT JOIN promotion p ON p.promo_id = oi.promo_id
-                        WHERE oi.order_id = ?
-                        ORDER BY b.book_id");
+// ดึงรายการหนังสือในคำสั่งซื้อและส่วนลดระดับสินค้าที่ได้รับ
+$sql_items = "
+    SELECT
+        b.book_id,
+        b.title,
+        oi.quantity,
+        oi.unit_price,
+        oi.discount_amount,
+        oi.quantity * oi.unit_price - oi.discount_amount AS line_total,
+        p.promo_name
+    FROM order_item oi
+    JOIN book b ON b.book_id = oi.book_id
+    LEFT JOIN promotion p ON p.promo_id = oi.promo_id
+    WHERE oi.order_id = ?
+    ORDER BY b.book_id
+";
+$items = $pdo->prepare($sql_items);
 $items->bindParam(1, $order_id);
 $items->execute();
 
-// 3. ไทม์ไลน์สถานะ พร้อมชื่อผู้ดูแลที่อัปเดต
-$logs = $pdo->prepare("SELECT l.status, l.note, l.changed_at,
-                              CONCAT(m.first_name, ' ', m.last_name) AS admin_name
-                       FROM order_status_log l
-                       LEFT JOIN member m ON m.member_id = l.changed_by
-                       WHERE l.order_id = ?
-                       ORDER BY l.changed_at, l.log_id");
+// ดึงประวัติการเปลี่ยนสถานะคำสั่งซื้อเรียงตามลำดับเวลา
+$sql_logs = "
+    SELECT
+        l.status,
+        l.note,
+        l.changed_at,
+        CONCAT(m.first_name, ' ', m.last_name) AS admin_name
+    FROM order_status_log l
+    LEFT JOIN member m ON m.member_id = l.changed_by
+    WHERE l.order_id = ?
+    ORDER BY l.changed_at, l.log_id
+";
+$logs = $pdo->prepare($sql_logs);
 $logs->bindParam(1, $order_id);
 $logs->execute();
 $log_rows = $logs->fetchAll();
 ?>
 <script>
-  // ติดตามสถานะแบบเรียลไทม์: ทุก 10 วินาทีขอสถานะล่าสุดจาก order-status.php (Ajax + JSON)
-  //   ถ้ามีสถานะใหม่ (เช่น ผู้ดูแลเพิ่งอัปเดต) จะสร้างรายการในไทม์ไลน์ใหม่ด้วย DOM โดยไม่ต้องรีเฟรชหน้า
+  // ตรวจสอบสถานะคำสั่งซื้อล่าสุดทุก 10 วินาทีด้วย Ajax และอัปเดตไทม์ไลน์อัตโนมัติ
   var statusXhr;
   var logCount = <?=count($log_rows)?>;
 
@@ -165,13 +189,12 @@ $log_rows = $logs->fetchAll();
   <aside class="panel">
     <h2>อัปเดตสถานะ (ผู้ดูแล)</h2>
     <script>
-      // สร้างเลขพัสดุตัวอย่าง TH + เดือนวัน + ตัวเลขสุ่ม แล้วใส่ในช่องเลขพัสดุ
       function genTracking() {
         var now = new Date();
         var mmdd = ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
         document.getElementById("tracking_no").value = "TH" + mmdd + Math.floor(1000000 + Math.random() * 9000000);
       }
-      // แสดงช่องขนส่ง/เลขพัสดุเฉพาะตอนเลือกสถานะ "จัดส่งแล้ว"
+      // แสดงช่องเลือกขนส่งและเลขพัสดุเฉพาะเมื่อเปลี่ยนสถานะเป็น "จัดส่งแล้ว"
       function toggleShipFields() {
         var shipped = document.getElementById("new_status").value == "shipped";
         document.getElementById("ship-fields").style.display = shipped ? "block" : "none";
@@ -205,7 +228,7 @@ $log_rows = $logs->fetchAll();
       <input type="text" id="note" name="note" maxlength="200">
       <p><input type="submit" value="บันทึกสถานะ"></p>
     </form>
-    <script>toggleShipFields();   // ตัวเลือกแรกอาจเป็น "จัดส่งแล้ว" ให้แสดงช่องขนส่งตั้งแต่โหลดหน้า</script>
+    <script>toggleShipFields();</script>
   </aside>
 <?php endif; ?>
 </div>

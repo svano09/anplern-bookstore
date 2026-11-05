@@ -1,6 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// Terminate a session: ลบ session id ในคุกกี้เครื่องผู้ใช้ แล้วทำลาย session (Lecture 9 สไลด์ 26)
+// ลบ Cookie ของ Session และทำลายข้อมูล Session บนเซิร์ฟเวอร์
 $params = session_get_cookie_params();
 setcookie(session_name(), '', time() - 42000,
     $params["path"], $params["domain"],

@@ -6,21 +6,40 @@ include "header.php";
 $code   = strtoupper(trim($_GET["code"] ?? ""));
 $amount = $_GET["amount"] ?? "";
 
-// Query 6.1: ตรวจคูปองที่กรอก กับยอดซื้อหลังหักโปรโมชั่น (คำสั่ง SQL อยู่ใน functions.php)
+// ตรวจสอบเงื่อนไขคูปองที่กรอกเทียบกับยอดซื้อหลังหักโปรโมชั่น
 $check = null;
 if ($code != "" && $amount != "")
     $check = check_coupon($pdo, $code, $amount);
 
-// คูปองที่ใช้ได้ตอนนี้ (ยังไม่หมดอายุ และยังมีสิทธิ์เหลือ)
-$stmt = $pdo->prepare("SELECT c.coupon_code, c.description, c.discount_type, c.discount_value, c.max_discount,
-                              c.min_spend, c.end_date, c.usage_limit - COUNT(o.order_id) AS remaining
-                       FROM coupon c
-                       LEFT JOIN orders o ON o.coupon_code = c.coupon_code AND o.status <> 'cancelled'
-                       WHERE CURDATE() BETWEEN c.start_date AND c.end_date
-                       GROUP BY c.coupon_code, c.description, c.discount_type, c.discount_value, c.max_discount,
-                                c.min_spend, c.end_date, c.usage_limit
-                       HAVING remaining > 0
-                       ORDER BY c.end_date");
+// ดึงรายการคูปองที่กำลังเปิดใช้งานและยังมีสิทธิ์คงเหลือ
+$sql = "
+    SELECT
+        c.coupon_code,
+        c.description,
+        c.discount_type,
+        c.discount_value,
+        c.max_discount,
+        c.min_spend,
+        c.end_date,
+        c.usage_limit - COUNT(o.order_id) AS remaining
+    FROM coupon c
+    LEFT JOIN orders o
+        ON o.coupon_code = c.coupon_code
+       AND o.status <> 'cancelled'
+    WHERE CURDATE() BETWEEN c.start_date AND c.end_date
+    GROUP BY
+        c.coupon_code,
+        c.description,
+        c.discount_type,
+        c.discount_value,
+        c.max_discount,
+        c.min_spend,
+        c.end_date,
+        c.usage_limit
+    HAVING remaining > 0
+    ORDER BY c.end_date
+";
+$stmt = $pdo->prepare($sql);
 $stmt->execute();
 ?>
 <p class="lead">กรอกรหัสคูปองในหน้าตะกร้าเพื่อหักส่วนลดเงินสดหรือเปอร์เซ็นต์ ระบบตรวจสอบวันหมดอายุ ยอดซื้อขั้นต่ำ และสิทธิ์คงเหลือ</p>
@@ -77,7 +96,7 @@ $stmt->execute();
 
 <?php if (is_admin()) : ?>
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 6.1 ตรวจคูปอง)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars(COUPON_CHECK_SQL)?></pre>
 </details>
 <?php endif; ?>

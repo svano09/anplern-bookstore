@@ -9,30 +9,40 @@ $page     = max(1, (int)($_GET["page"] ?? 1));
 $per_page = 10;
 $offset   = ($page - 1) * $per_page;
 
-// ลูกค้าเห็นเฉพาะคำสั่งซื้อของตัวเอง (member_id จาก session) / ผู้ดูแลเห็นทั้งหมด หรือกรองตามสมาชิก
+// กำหนดการเข้าถึงข้อมูล: ลูกค้าดูได้เฉพาะของตนเอง ผู้ดูแลดูได้ทั้งหมดหรือกรองตามรายชื่อสมาชิก
 $member_id = is_admin() ? (int)($_GET["member_id"] ?? 0) : $_SESSION["member_id"];
 
-// Query 7: คำสั่งซื้อพร้อมสถานะล่าสุดจากประวัติ (order_status_log) และระยะเวลาจัดส่ง
-//   i = จำนวนเล่มในคำสั่งซื้อ
-//   l = log ล่าสุดของแต่ละคำสั่งซื้อ (subquery เลือก log_id ล่าสุด)
-$sql = "SELECT o.order_id, o.order_date, CONCAT(m.first_name, ' ', m.last_name) AS customer,
-       i.book_qty, o.net_total, o.status, o.carrier, o.tracking_no,
-       l.note AS last_note, l.changed_at AS last_update,
-       CASE
-         WHEN o.status = 'delivered' THEN CONCAT('ส่งถึงภายใน ', DATEDIFF(l.changed_at, o.order_date), ' วัน')
-         WHEN o.status = 'cancelled' THEN '-'
-         ELSE CONCAT('ผ่านมาแล้ว ', DATEDIFF(CURDATE(), o.order_date), ' วัน')
-       END AS lead_time
+// ดึงรายการคำสั่งซื้อ พร้อมจำนวนเล่ม สถานะล่าสุดจาก order_status_log และระยะเวลาดำเนินการ
+$sql = "SELECT
+    o.order_id,
+    o.order_date,
+    CONCAT(m.first_name, ' ', m.last_name) AS customer,
+    i.book_qty,
+    o.net_total,
+    o.status,
+    o.carrier,
+    o.tracking_no,
+    l.note AS last_note,
+    l.changed_at AS last_update,
+    CASE
+        WHEN o.status = 'delivered' THEN CONCAT('ส่งถึงภายใน ', DATEDIFF(l.changed_at, o.order_date), ' วัน')
+        WHEN o.status = 'cancelled' THEN '-'
+        ELSE CONCAT('ผ่านมาแล้ว ', DATEDIFF(CURDATE(), o.order_date), ' วัน')
+    END AS lead_time
 FROM orders o
 JOIN member m ON m.member_id = o.member_id
-JOIN (SELECT order_id, SUM(quantity) AS book_qty
-      FROM order_item GROUP BY order_id) i ON i.order_id = o.order_id
+JOIN (
+    SELECT order_id, SUM(quantity) AS book_qty
+    FROM order_item
+    GROUP BY order_id
+) i ON i.order_id = o.order_id
 JOIN order_status_log l ON l.log_id = (
     SELECT l2.log_id
     FROM order_status_log l2
     WHERE l2.order_id = o.order_id
     ORDER BY l2.changed_at DESC, l2.log_id DESC
-    LIMIT 1)
+    LIMIT 1
+)
 WHERE (o.status = ? OR ? = '')
   AND (o.member_id = ? OR ? = 0)
 ORDER BY o.order_date DESC
@@ -48,11 +58,18 @@ $stmt->bindValue(6, $offset, PDO::PARAM_INT);
 $stmt->execute();
 $orders = $stmt->fetchAll();
 
-// จำนวนคำสั่งซื้อแยกตามสถานะ (ใช้ทำปุ่มกรอง และคำนวณจำนวนหน้า)
-$count = $pdo->prepare("SELECT status, COUNT(*) AS n FROM orders WHERE (member_id = ? OR ? = 0) GROUP BY status");
+// นับจำนวนคำสั่งซื้อแยกตามสถานะเพื่อทำแถบตัวกรองและคำนวณหน้าทั้งหมด
+$sql_count = "
+    SELECT status, COUNT(*) AS n
+    FROM orders
+    WHERE (member_id = ? OR ? = 0)
+    GROUP BY status
+";
+$count = $pdo->prepare($sql_count);
 $count->bindParam(1, $member_id);
 $count->bindParam(2, $member_id);
 $count->execute();
+
 $status_count = ["" => 0];
 while ($row = $count->fetch()) {
     $status_count[$row["status"]] = $row["n"];
@@ -60,7 +77,6 @@ while ($row = $count->fetch()) {
 }
 $total_pages = max(1, ceil(($status_count[$status] ?? 0) / $per_page));
 
-// ชื่อสมาชิกที่กำลังกรอง (ผู้ดูแลเปิดมาจากหน้าสมาชิก)
 $filter_name = "";
 if (is_admin() && $member_id) {
     $m = $pdo->prepare("SELECT CONCAT(first_name, ' ', last_name) FROM member WHERE member_id = ?");
@@ -135,7 +151,7 @@ $query = "member_id=" . (is_admin() ? $member_id : 0);
 
 <?php if (is_admin()) : ?>
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 7)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php endif; ?>

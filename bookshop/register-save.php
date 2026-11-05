@@ -1,6 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// บันทึกสมาชิกใหม่: ตรวจข้อมูลซ้ำฝั่งเซิร์ฟเวอร์ แล้วสร้างบัญชีสิทธิ์ลูกค้า + เข้าสู่ระบบอัตโนมัติ (ข้อ 3.4)
+// ตรวจสอบข้อมูลการสมัครสมาชิก เข้ารหัสรหัสผ่าน และเข้าสู่ระบบให้อัตโนมัติ
 check_csrf();
 $first_name = trim($_POST["first_name"] ?? "");
 $last_name  = trim($_POST["last_name"] ?? "");
@@ -23,7 +23,6 @@ if (!preg_match('/^0[0-9]{1,2}-?[0-9]{3}-?[0-9]{4}$/', $phone))
 if (mb_strlen($address) < 10)
     $errors[] = "กรุณากรอกที่อยู่จัดส่งให้ครบถ้วน";
 
-// อีเมลซ้ำ (ตรวจอีกครั้ง เผื่อผู้ใช้ปิด JavaScript)
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM member WHERE email = ?");
 $stmt->bindParam(1, $email);
 $stmt->execute();
@@ -37,10 +36,19 @@ if ($errors) {
     exit;
 }
 
-// รหัสผ่านเก็บแบบ hash เท่านั้น (ไม่มีใครอ่านรหัสผ่านจริงได้ แม้แต่ผู้ดูแลระบบ)
 $hash = password_hash($password, PASSWORD_DEFAULT);
-$stmt = $pdo->prepare("INSERT INTO member (first_name, last_name, email, password_hash, phone, address, role)
-                       VALUES (?, ?, ?, ?, ?, ?, 'customer')");
+$sql = "
+    INSERT INTO member (
+        first_name,
+        last_name,
+        email,
+        password_hash,
+        phone,
+        address,
+        role
+    ) VALUES (?, ?, ?, ?, ?, ?, 'customer')
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $first_name);
 $stmt->bindParam(2, $last_name);
 $stmt->bindParam(3, $email);
@@ -49,7 +57,6 @@ $stmt->bindParam(5, $phone);
 $stmt->bindParam(6, $address);
 $stmt->execute();
 
-// เข้าสู่ระบบให้อัตโนมัติและสร้าง Session
 session_regenerate_id(true);
 $_SESSION["member_id"]  = $pdo->lastInsertId();
 $_SESSION["first_name"] = $first_name;

@@ -7,7 +7,6 @@ if (is_login()) {
 $title = "สมัครสมาชิก";
 include "header.php";
 
-// ค่าที่กรอกไว้ครั้งก่อน (กรณีบันทึกไม่สำเร็จ) ไม่เก็บรหัสผ่าน
 $old = $_SESSION["register_old"] ?? [];
 unset($_SESSION["register_old"]);
 function old($name) {
@@ -18,7 +17,7 @@ function old($name) {
 <script>
   var xmlHttp;
 
-  // 3.2 ตรวจอีเมลซ้ำทันทีที่กรอกเสร็จ (Ajax + XMLHttpRequest อ่าน responseText แบบ text)
+  // ตรวจสอบอีเมลซ้ำแบบเรียลไทม์ผ่าน Ajax (XMLHttpRequest)
   function checkEmail() {
     var email = document.getElementById("email").value;
     if (email == "") return;
@@ -43,14 +42,14 @@ function old($name) {
       } else {
         input.className = "denied";
         var text = xmlHttp.responseText == "taken" ? "อีเมลนี้มีผู้ใช้แล้ว" : "รูปแบบอีเมลไม่ถูกต้อง";
-        input.setCustomValidity(text);            // ห้ามกดสมัครจนกว่าจะแก้
+        input.setCustomValidity(text);
         status.innerHTML = "✗ " + text;
         status.style.color = "var(--sale)";
       }
     }
   }
 
-  // 3.3 ตรวจความปลอดภัยของรหัสผ่าน: เปลี่ยนสีและความยาวแถบ + ติ๊กเงื่อนไขที่ผ่านแล้ว
+  // ประเมินระดับความปลอดภัยของรหัสผ่านและอัปเดตแถบสถานะด้วย DOM
   function checkPassword() {
     var pw = document.getElementById("password").value;
     var rules = {
@@ -74,12 +73,11 @@ function old($name) {
     bar.style.background = levels[score][1];
     document.getElementById("strength-text").innerHTML = pw == "" ? "" : "ความปลอดภัย: " + levels[score][0];
 
-    // ผ่านครบทุกข้อแล้ว ซ่อนรายการเงื่อนไข
     document.getElementById("rules").style.display = score == 5 ? "none" : "block";
     checkConfirm();
   }
 
-  // 3.3 ยืนยันรหัสผ่านต้องตรงกัน (ตรวจด้วย JavaScript)
+  // ตรวจสอบว่ารหัสผ่านและช่องยืนยันรหัสผ่านตรงกัน
   function checkConfirm() {
     var pw = document.getElementById("password").value;
     var confirm = document.getElementById("confirm");

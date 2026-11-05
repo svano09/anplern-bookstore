@@ -1,9 +1,8 @@
 <?php
-// ส่วนหัวของทุกหน้า: ก่อน include ไฟล์นี้ ให้กำหนด $title (ชื่อหน้า)
 $shop_name = "อ่านเพลิน Bookstore";
 $current = basename($_SERVER["PHP_SELF"]);
 
-// เมนูแสดงตามสิทธิ์ของผู้ใช้ (อ่านจาก Session)
+// กำหนดรายการเมนูนำทางตามสิทธิ์ของผู้ใช้ใน Session
 $menu = [
     "ร้านหนังสือ" => [
         "index.php"  => "หน้าแรก",
@@ -32,17 +31,21 @@ if (is_admin()) {
     ];
 }
 
-// หน้าย่อยให้เมนูหลักของมันเป็นสีเดิม เช่น อยู่หน้า edit-book.php ก็ไฮไลต์ "จัดการหนังสือ"
+// จับคู่หน้าย่อยให้ไฮไลต์เมนูหลักที่เกี่ยวข้อง
 $parent = [
-    "add-book.php" => "list-book.php", "edit-book.php" => "list-book.php",
-    "promotion-form.php" => "promotions.php", "coupon-form.php" => "coupons.php",
-    "order-detail.php" => "orders.php", "book.php" => "search.php",
-    "checkout.php" => "cart.php", "payment.php" => "cart.php",
+    "add-book.php"       => "list-book.php",
+    "edit-book.php"      => "list-book.php",
+    "promotion-form.php" => "promotions.php",
+    "coupon-form.php"    => "coupons.php",
+    "order-detail.php"   => "orders.php",
+    "book.php"           => "search.php",
+    "checkout.php"       => "cart.php",
+    "payment.php"        => "cart.php",
 ];
 $active = $parent[$current] ?? $current;
 
 $flash = $_SESSION["flash"] ?? null;
-unset($_SESSION["flash"]);   // แสดงครั้งเดียวแล้วลบตัวแปรออกจาก session
+unset($_SESSION["flash"]);
 ?>
 <!doctype html>
 <html lang="th">

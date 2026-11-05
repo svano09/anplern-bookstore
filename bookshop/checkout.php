@@ -20,7 +20,12 @@ foreach ($price["lines"] as $line) {
 $title = "ยืนยันคำสั่งซื้อ";
 include "header.php";
 
-$stmt = $pdo->prepare("SELECT first_name, last_name, phone, address FROM member WHERE member_id = ?");
+$sql = "
+    SELECT first_name, last_name, phone, address
+    FROM member
+    WHERE member_id = ?
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $_SESSION["member_id"]);
 $stmt->execute();
 $me = $stmt->fetch();
@@ -28,7 +33,7 @@ $address = $_SESSION["checkout"]["address"] ?? $me["address"];
 $method  = $_SESSION["checkout"]["method"] ?? "card";
 ?>
 <script>
-  // แสดงคำอธิบายของวิธีชำระเงินที่เลือก และซ่อนอันที่ไม่ได้เลือก (เปลี่ยนตามข้อมูลในฟอร์ม)
+  // สลับการแสดงคำอธิบายตามวิธีชำระเงินที่เลือก
   function showMethod() {
     var card = document.getElementById("method-card").checked;
     document.getElementById("info-card").style.display = card ? "block" : "none";

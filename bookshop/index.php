@@ -3,35 +3,64 @@
 $title = "หน้าแรก";
 include "header.php";
 
-// โปรโมชั่นที่ใช้ได้วันนี้
-$promo = $pdo->prepare("SELECT p.promo_name, p.promo_type, p.discount_percent, p.end_date, c.category_name
-                        FROM promotion p
-                        LEFT JOIN category c ON c.category_id = p.category_id
-                        WHERE p.is_active = 1 AND CURDATE() BETWEEN p.start_date AND p.end_date
-                        ORDER BY FIELD(p.promo_type, 'seasonal', 'clearance', 'tier'), p.discount_percent DESC");
+// ดึงโปรโมชั่นที่เปิดใช้งานและอยู่ในช่วงเวลาปัจจุบัน
+$sql_promo = "
+    SELECT
+        p.promo_name,
+        p.promo_type,
+        p.discount_percent,
+        p.end_date,
+        c.category_name
+    FROM promotion p
+    LEFT JOIN category c ON c.category_id = p.category_id
+    WHERE p.is_active = 1
+      AND CURDATE() BETWEEN p.start_date AND p.end_date
+    ORDER BY
+        FIELD(p.promo_type, 'seasonal', 'clearance', 'tier'),
+        p.discount_percent DESC
+";
+$promo = $pdo->prepare($sql_promo);
 $promo->execute();
 
-// คูปองที่ยังใช้ได้ (ยังไม่หมดอายุ และยังมีสิทธิ์เหลือ)
-$coupon = $pdo->prepare("SELECT c.coupon_code, c.description, c.end_date,
-                                c.usage_limit - COUNT(o.order_id) AS remaining
-                         FROM coupon c
-                         LEFT JOIN orders o ON o.coupon_code = c.coupon_code AND o.status <> 'cancelled'
-                         WHERE CURDATE() BETWEEN c.start_date AND c.end_date
-                         GROUP BY c.coupon_code, c.description, c.end_date, c.usage_limit
-                         HAVING remaining > 0
-                         ORDER BY c.end_date");
+// ดึงคูปองที่ยังไม่หมดอายุและยังมีสิทธิ์คงเหลือ
+$sql_coupon = "
+    SELECT
+        c.coupon_code,
+        c.description,
+        c.end_date,
+        c.usage_limit - COUNT(o.order_id) AS remaining
+    FROM coupon c
+    LEFT JOIN orders o
+        ON o.coupon_code = c.coupon_code
+       AND o.status <> 'cancelled'
+    WHERE CURDATE() BETWEEN c.start_date AND c.end_date
+    GROUP BY
+        c.coupon_code,
+        c.description,
+        c.end_date,
+        c.usage_limit
+    HAVING remaining > 0
+    ORDER BY c.end_date
+";
+$coupon = $pdo->prepare($sql_coupon);
 $coupon->execute();
 $coupons = $coupon->fetchAll();
 
-// หนังสือเข้าใหม่ 8 เล่มล่าสุด
-$latest = $pdo->prepare("SELECT book_id, title, author, price, stock FROM book
-                         WHERE stock > 0 ORDER BY added_date DESC, book_id DESC LIMIT 8");
+// ดึงหนังสือเข้าใหม่ 8 เล่มล่าสุดที่มีสินค้าพร้อมขาย
+$sql_latest = "
+    SELECT book_id, title, author, price, stock
+    FROM book
+    WHERE stock > 0
+    ORDER BY added_date DESC, book_id DESC
+    LIMIT 8
+";
+$latest = $pdo->prepare($sql_latest);
 $latest->execute();
+
 $type_th = ["tier" => "ยอดซื้อขั้นบันได", "seasonal" => "เทศกาล", "clearance" => "ล้างสต็อก"];
 ?>
 <script>
-  // เมื่อโหลดหน้าเสร็จ (window load event): สร้างข้อความทักทายตามช่วงเวลา
-  // และเพิ่มป้าย "เหลืออีก N วัน" ให้คูปองแต่ละใบด้วย getElementById
+  // เมื่อโหลดหน้าเสร็จ: สร้างข้อความทักทายตามช่วงเวลา และแสดงจำนวนวันที่เหลือของแต่ละคูปอง
   var coupons = <?=json_encode(array_column($coupons, "end_date", "coupon_code"))?>;
 
   window.addEventListener("load", function () {

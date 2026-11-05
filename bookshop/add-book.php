@@ -7,7 +7,6 @@ include "header.php";
 $cats = $pdo->prepare("SELECT category_id, category_name FROM category ORDER BY category_id");
 $cats->execute();
 
-// ค่าที่กรอกไว้ครั้งก่อน (กรณีบันทึกไม่ผ่านการตรวจข้อมูล)
 $old = $_SESSION["book_old"] ?? [];
 unset($_SESSION["book_old"]);
 function old($name, $default = "") {
@@ -16,8 +15,7 @@ function old($name, $default = "") {
 }
 ?>
 <script>
-  // นำเข้าข้อมูลหนังสือจาก ISBN ผ่าน Open Library Web API (ข้อมูลรูปแบบ JSON)
-  //   ดึงข้อมูล -> แปลง JSON เป็น object -> ประมวลผล -> แสดงตัวอย่าง -> ใส่ลงฟอร์ม -> กดบันทึกลงฐานข้อมูล
+  // ดึงข้อมูลหนังสือจาก Open Library API (รูปแบบ JSON) มาประมวลผลและเติมลงในฟอร์มอัตโนมัติ
   async function importIsbn() {
     var input = document.getElementById("isbn");
     var isbn = input.value.replace(/[^0-9X]/gi, "");
@@ -40,7 +38,6 @@ function old($name, $default = "") {
         return;
       }
 
-      // ประมวลผลข้อมูล JSON: รวมชื่อผู้แต่งหลายคน, หาปีพิมพ์, เลือกหัวข้อ 3 อันแรก
       var authors = (book.authors || []).map(function (a) { return a.name; }).join(", ");
       var year = (book.publish_date || "").match(/[0-9]{4}/);
       var publisher = book.publishers ? book.publishers[0].name : "-";
@@ -50,7 +47,6 @@ function old($name, $default = "") {
                     (book.number_of_pages ? " · " + book.number_of_pages + " หน้า" : "") +
                     (subjects ? "\nหัวข้อ: " + subjects : "");
 
-      // แสดงตัวอย่างที่ประมวลผลแล้ว (สร้าง element ด้วย DOM)
       result.innerHTML = "";
       var card = document.createElement("div");
       card.className = "isbn-card";
@@ -68,7 +64,6 @@ function old($name, $default = "") {
       card.appendChild(text);
       result.appendChild(card);
 
-      // ใส่ข้อมูลลงฟอร์ม ผู้ดูแลเลือกหมวด ราคา จำนวน แล้วกดบันทึก
       document.getElementById("title").value = fullTitle.substring(0, 200);
       document.getElementById("author").value = (authors || "ไม่ระบุ").substring(0, 150);
       document.getElementById("description").value = details;

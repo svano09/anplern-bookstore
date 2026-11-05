@@ -1,6 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// บันทึกคูปอง (เพิ่ม/แก้ไข) และลบคูปองที่ยังไม่เคยถูกใช้
+// บันทึกข้อมูลคูปอง (สร้างใหม่/แก้ไข) และลบคูปองที่ยังไม่เคยถูกใช้ในคำสั่งซื้อ
 require_admin();
 check_csrf();
 $code = strtoupper(trim($_POST["coupon_code"] ?? ""));
@@ -22,8 +22,16 @@ $is_new = !empty($_POST["is_new"]);
 $type   = $_POST["discount_type"] ?? "";
 $value  = $_POST["discount_value"] ?? "";
 $max    = $type == "percent" && ($_POST["max_discount"] ?? "") !== "" ? $_POST["max_discount"] : null;
-$data   = [trim($_POST["description"] ?? ""), $type, $value, $max, $_POST["min_spend"] ?? "",
-           $_POST["usage_limit"] ?? "", $_POST["start_date"] ?? "", $_POST["end_date"] ?? ""];
+$data   = [
+    trim($_POST["description"] ?? ""),
+    $type,
+    $value,
+    $max,
+    $_POST["min_spend"] ?? "",
+    $_POST["usage_limit"] ?? "",
+    $_POST["start_date"] ?? "",
+    $_POST["end_date"] ?? "",
+];
 
 $errors = [];
 if (!preg_match('/^[A-Z0-9]{3,20}$/', $code))
@@ -40,6 +48,7 @@ if (!ctype_digit((string)$data[5]) || $data[5] < 1)
     $errors[] = "จำนวนสิทธิ์ต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป";
 if (!strtotime($data[6]) || !strtotime($data[7]) || $data[7] < $data[6])
     $errors[] = "ช่วงวันที่ไม่ถูกต้อง";
+
 if ($is_new) {
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM coupon WHERE coupon_code = ?");
     $stmt->bindParam(1, $code);
@@ -54,14 +63,36 @@ if ($errors) {
 }
 
 if ($is_new) {
-    $stmt = $pdo->prepare("INSERT INTO coupon (description, discount_type, discount_value, max_discount, min_spend,
-                                               usage_limit, start_date, end_date, coupon_code)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $sql = "
+        INSERT INTO coupon (
+            description,
+            discount_type,
+            discount_value,
+            max_discount,
+            min_spend,
+            usage_limit,
+            start_date,
+            end_date,
+            coupon_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ";
+    $stmt = $pdo->prepare($sql);
     flash("ok", "สร้างคูปอง " . $code . " แล้ว");
 } else {
-    $stmt = $pdo->prepare("UPDATE coupon SET description = ?, discount_type = ?, discount_value = ?, max_discount = ?,
-                                  min_spend = ?, usage_limit = ?, start_date = ?, end_date = ?
-                           WHERE coupon_code = ?");
+    $sql = "
+        UPDATE coupon
+        SET
+            description    = ?,
+            discount_type  = ?,
+            discount_value = ?,
+            max_discount   = ?,
+            min_spend      = ?,
+            usage_limit    = ?,
+            start_date     = ?,
+            end_date       = ?
+        WHERE coupon_code = ?
+    ";
+    $stmt = $pdo->prepare($sql);
     flash("ok", "แก้ไขคูปอง " . $code . " แล้ว");
 }
 $data[] = $code;

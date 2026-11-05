@@ -1,7 +1,6 @@
 <?php include "connect.php"; ?>
 <?php
-// จัดการตะกร้าสินค้า (รับแบบ POST): add / update / remove / coupon / remove_coupon
-//   ถ้าเรียกด้วย Ajax (ajax=1) ตอบกลับเป็น JSON, ถ้าส่งจากฟอร์มปกติ กลับไปหน้าเดิมพร้อมข้อความ
+// จัดการรายการในตะกร้าสินค้า (เพิ่ม / ปรับจำนวน / ลบ / ใช้หรือยกเลิกคูปอง)
 check_csrf();
 
 $action  = $_POST["action"] ?? "";
@@ -17,7 +16,6 @@ if ($action == "add" || $action == "update") {
     $stmt->execute();
     $book = $stmt->fetch();
 
-    // ตรวจข้อมูลฝั่งเซิร์ฟเวอร์ซ้ำเสมอ (ห้ามเชื่อค่าจากเบราว์เซอร์อย่างเดียว)
     $new_qty = $action == "add" ? ($cart[$book_id] ?? 0) + $qty : $qty;
     if (!$book) {
         $ok = false;
@@ -52,7 +50,7 @@ if ($action == "add" || $action == "update") {
     } else {
         $price = price_cart($pdo, $cart, $code);
         if ($price["coupon"]) {
-            $_SESSION["coupon"] = $code;   // Store information in the session object
+            $_SESSION["coupon"] = $code;
             $message = "ใช้คูปอง " . $code . " ลด " . number_format($price["coupon_discount"], 2) . " บาท";
         } else {
             $ok = false;
@@ -61,7 +59,7 @@ if ($action == "add" || $action == "update") {
     }
 
 } else if ($action == "remove_coupon") {
-    unset($_SESSION["coupon"]);   // Remove a session variable
+    unset($_SESSION["coupon"]);
     $message = "ยกเลิกการใช้คูปองแล้ว";
 }
 

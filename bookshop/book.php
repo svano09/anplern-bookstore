@@ -2,9 +2,13 @@
 <?php
 $book_id = (int)($_GET["book_id"] ?? 0);
 
-$stmt = $pdo->prepare("SELECT b.*, c.category_name FROM book b
-                       JOIN category c ON c.category_id = b.category_id
-                       WHERE b.book_id = ?");
+$sql = "
+    SELECT b.*, c.category_name
+    FROM book b
+    JOIN category c ON c.category_id = b.category_id
+    WHERE b.book_id = ?
+";
+$stmt = $pdo->prepare($sql);
 $stmt->bindParam(1, $book_id);
 $stmt->execute();
 $book = $stmt->fetch();
@@ -18,13 +22,19 @@ if (!$book) {
     exit;
 }
 
-// ราคาหลังหักโปรโมชั่นระดับสินค้า (ใช้วิธีคิดเดียวกับตะกร้า)
+// คำนวณราคาหลังหักโปรโมชั่นระดับสินค้า
 $price = price_cart($pdo, [$book_id => 1], "");
 $line  = $price["lines"][0];
 
-// หนังสือในหมวดเดียวกัน 4 เล่ม
-$related = $pdo->prepare("SELECT book_id, title, author, price FROM book
-                          WHERE category_id = ? AND book_id <> ? ORDER BY RAND() LIMIT 4");
+// สุ่มหนังสือในหมวดหมู่เดียวกันมาแสดง 4 เล่ม
+$sql_related = "
+    SELECT book_id, title, author, price
+    FROM book
+    WHERE category_id = ? AND book_id <> ?
+    ORDER BY RAND()
+    LIMIT 4
+";
+$related = $pdo->prepare($sql_related);
 $related->bindParam(1, $book["category_id"]);
 $related->bindParam(2, $book_id);
 $related->execute();

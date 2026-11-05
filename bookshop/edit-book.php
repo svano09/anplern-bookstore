@@ -4,7 +4,6 @@ require_admin();
 $title = "แก้ไขข้อมูลหนังสือ";
 include "header.php";
 
-// ดึงข้อมูลเดิมตามรหัสหนังสือที่ส่งมากับ URL
 $stmt = $pdo->prepare("SELECT * FROM book WHERE book_id = ?");
 $stmt->bindParam(1, $_GET["book_id"]);
 $stmt->execute();

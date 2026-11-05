@@ -4,25 +4,29 @@ require_admin();
 $title = "รายงานยอดขายรายเดือน";
 include "header.php";
 
-// ช่วงวันที่ของรายงาน (ค่าเริ่มต้น: ต้นปีที่มีคำสั่งซื้อแรก ถึง วันนี้)
 $date_from = $_GET["date_from"] ?? report_start($pdo);
 $date_to   = $_GET["date_to"] ?? date("Y-m-d");
 
-// Query 3: สรุปยอดขายรายเดือน แยกส่วนลดแต่ละชั้น (ไม่นับคำสั่งซื้อที่ยกเลิก)
-//   i = จำนวนเล่มต่อคำสั่งซื้อ (รวมก่อน join เพื่อไม่ให้ยอดเงินของ orders ถูกนับซ้ำ)
-$sql = "SELECT DATE_FORMAT(o.order_date, '%Y-%m') AS sale_month,
-       COUNT(*) AS order_count,
-       SUM(i.book_qty) AS book_qty,
-       SUM(o.subtotal) AS gross_sales,
-       SUM(o.item_discount) AS item_discount,
-       SUM(o.tier_discount) AS tier_discount,
-       SUM(o.coupon_discount) AS coupon_discount,
-       SUM(o.net_total) AS net_sales,
-       ROUND(AVG(o.net_total), 2) AS avg_order
+// สรุปยอดขายรายเดือน แยกส่วนลดแต่ละชั้น (ไม่นับคำสั่งซื้อที่ยกเลิก)
+//   Subquery i รวมจำนวนเล่มต่อคำสั่งซื้อก่อน JOIN เพื่อไม่ให้ยอดเงินในตาราง orders ถูกนับซ้ำ
+$sql = "SELECT
+    DATE_FORMAT(o.order_date, '%Y-%m') AS sale_month,
+    COUNT(*) AS order_count,
+    SUM(i.book_qty) AS book_qty,
+    SUM(o.subtotal) AS gross_sales,
+    SUM(o.item_discount) AS item_discount,
+    SUM(o.tier_discount) AS tier_discount,
+    SUM(o.coupon_discount) AS coupon_discount,
+    SUM(o.net_total) AS net_sales,
+    ROUND(AVG(o.net_total), 2) AS avg_order
 FROM orders o
-JOIN (SELECT order_id, SUM(quantity) AS book_qty
-      FROM order_item
-      GROUP BY order_id) i ON i.order_id = o.order_id
+JOIN (
+    SELECT
+        order_id,
+        SUM(quantity) AS book_qty
+    FROM order_item
+    GROUP BY order_id
+) i ON i.order_id = o.order_id
 WHERE o.status <> 'cancelled'
   AND DATE(o.order_date) BETWEEN ? AND ?
 GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
@@ -58,8 +62,7 @@ foreach ($rows as $row) {
 </section>
 <script src="js/chart.umd.min.js"></script>
 <script>
-  // ส่งผลลัพธ์ของ Query 3 จาก PHP มาเป็น JSON ให้ JavaScript วาดกราฟแท่งซ้อน
-  //   ยอดขายสุทธิ + ส่วนลดแต่ละชั้น = ยอดก่อนลด
+  // วาดกราฟแท่งซ้อน (Stacked Bar): ยอดขายสุทธิ + ส่วนลดแต่ละชั้น = ยอดก่อนลด
   var rows = <?=json_encode($rows)?>;
   var labels = <?=json_encode(array_map(function ($r) use ($thai_month) {
       list($y, $m) = explode("-", $r["sale_month"]);
@@ -134,7 +137,7 @@ foreach ($rows as $row) {
 <?php endif; ?>
 
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 3)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php include "footer.php"; ?>

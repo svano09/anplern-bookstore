@@ -4,17 +4,25 @@ require_admin();
 $title = "จัดการโปรโมชั่น";
 include "header.php";
 
-$stmt = $pdo->prepare("SELECT p.*, c.category_name,
-       CASE
-         WHEN p.is_active = 0           THEN 'ปิดใช้งาน'
-         WHEN CURDATE() < p.start_date  THEN 'ยังไม่เริ่ม'
-         WHEN CURDATE() > p.end_date    THEN 'สิ้นสุดแล้ว'
-         ELSE 'กำลังใช้งาน'
-       END AS promo_status
-FROM promotion p
-LEFT JOIN category c ON c.category_id = p.category_id
-ORDER BY FIELD(p.promo_type, 'tier', 'seasonal', 'clearance'), p.start_date DESC");
+$sql = "
+    SELECT
+        p.*,
+        c.category_name,
+        CASE
+            WHEN p.is_active = 0          THEN 'ปิดใช้งาน'
+            WHEN CURDATE() < p.start_date THEN 'ยังไม่เริ่ม'
+            WHEN CURDATE() > p.end_date   THEN 'สิ้นสุดแล้ว'
+            ELSE 'กำลังใช้งาน'
+        END AS promo_status
+    FROM promotion p
+    LEFT JOIN category c ON c.category_id = p.category_id
+    ORDER BY
+        FIELD(p.promo_type, 'tier', 'seasonal', 'clearance'),
+        p.start_date DESC
+";
+$stmt = $pdo->prepare($sql);
 $stmt->execute();
+
 $type_th = ["tier" => "ซื้อครบยอด (ขั้นบันได)", "seasonal" => "เทศกาล", "clearance" => "ล้างสต็อก"];
 $status_class = ["กำลังใช้งาน" => "ok", "ยังไม่เริ่ม" => "info", "สิ้นสุดแล้ว" => "off", "ปิดใช้งาน" => "warn"];
 ?>

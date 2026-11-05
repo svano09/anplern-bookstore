@@ -4,41 +4,59 @@ require_admin();
 $title = "สินค้าค้างสต็อก / ล้างสต็อก";
 include "header.php";
 
-// Query 2: หนังสือที่อยู่ในคลังนาน "และ" เหลือน้อย -> ได้ส่วนลดล้างสต็อกอัตโนมัติ
-//   r  = เกณฑ์ขั้นต่ำของกฎล้างสต็อกที่เปิดใช้อยู่ (ใช้คัดหนังสือที่เกือบเข้าเงื่อนไขมาแสดงด้วย)
-//   s  = ยอดขายย้อนหลัง 90 วันของแต่ละเล่ม
-//   p  = กฎล้างสต็อกขั้นที่ลดมากที่สุดที่หนังสือเล่มนั้นเข้าเงื่อนไข
-$sql = "SELECT b.book_id, b.title, c.category_name, b.added_date,
-       DATEDIFF(CURDATE(), b.added_date) AS days_in_stock,
-       b.stock, IFNULL(s.sold_90d, 0) AS sold_90d, b.price,
-       p.promo_name, IFNULL(p.discount_percent, 0) AS discount_percent,
-       ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) AS clearance_price,
-       CASE
-         WHEN p.promo_id IS NOT NULL THEN 'ลดราคาล้างสต็อก'
-         WHEN DATEDIFF(CURDATE(), b.added_date) < r.need_days THEN 'เหลือน้อย แต่เพิ่งเข้าระบบ'
-         ELSE 'อยู่นาน แต่สต็อกยังเหลือมาก'
-       END AS clearance_status
+// ค้นหาหนังสือที่อยู่ในคลังนานหรือเหลือน้อย พร้อมคำนวณส่วนลดล้างสต็อกอัตโนมัติ
+//   r = เกณฑ์ขั้นต่ำของกฎล้างสต็อกที่เปิดใช้อยู่ (ใช้คัดหนังสือที่เข้าข่ายมาแสดง)
+//   s = ยอดขายย้อนหลัง 90 วันของแต่ละเล่ม
+//   p = กฎล้างสต็อกขั้นที่ลดมากที่สุดที่หนังสือเล่มนั้นเข้าเงื่อนไขครบทั้ง 2 ข้อ
+$sql = "SELECT
+    b.book_id,
+    b.title,
+    c.category_name,
+    b.added_date,
+    DATEDIFF(CURDATE(), b.added_date) AS days_in_stock,
+    b.stock,
+    IFNULL(s.sold_90d, 0) AS sold_90d,
+    b.price,
+    p.promo_name,
+    IFNULL(p.discount_percent, 0) AS discount_percent,
+    ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) AS clearance_price,
+    CASE
+        WHEN p.promo_id IS NOT NULL THEN 'ลดราคาล้างสต็อก'
+        WHEN DATEDIFF(CURDATE(), b.added_date) < r.need_days THEN 'เหลือน้อย แต่เพิ่งเข้าระบบ'
+        ELSE 'อยู่นาน แต่สต็อกยังเหลือมาก'
+    END AS clearance_status
 FROM book b
 JOIN category c ON c.category_id = b.category_id
-CROSS JOIN (SELECT MIN(min_days_in_stock) AS need_days, MAX(max_stock) AS need_stock
-            FROM promotion
-            WHERE promo_type = 'clearance' AND is_active = 1
-              AND CURDATE() BETWEEN start_date AND end_date) r
-LEFT JOIN (SELECT oi.book_id, SUM(oi.quantity) AS sold_90d
-           FROM order_item oi
-           JOIN orders o ON o.order_id = oi.order_id
-           WHERE o.status <> 'cancelled'
-             AND o.order_date >= CURDATE() - INTERVAL 90 DAY
-           GROUP BY oi.book_id) s ON s.book_id = b.book_id
+CROSS JOIN (
+    SELECT
+        MIN(min_days_in_stock) AS need_days,
+        MAX(max_stock) AS need_stock
+    FROM promotion
+    WHERE promo_type = 'clearance'
+      AND is_active = 1
+      AND CURDATE() BETWEEN start_date AND end_date
+) r
+LEFT JOIN (
+    SELECT
+        oi.book_id,
+        SUM(oi.quantity) AS sold_90d
+    FROM order_item oi
+    JOIN orders o ON o.order_id = oi.order_id
+    WHERE o.status <> 'cancelled'
+      AND o.order_date >= CURDATE() - INTERVAL 90 DAY
+    GROUP BY oi.book_id
+) s ON s.book_id = b.book_id
 LEFT JOIN promotion p ON p.promo_id = (
     SELECT p2.promo_id
     FROM promotion p2
-    WHERE p2.promo_type = 'clearance' AND p2.is_active = 1
+    WHERE p2.promo_type = 'clearance'
+      AND p2.is_active = 1
       AND CURDATE() BETWEEN p2.start_date AND p2.end_date
       AND DATEDIFF(CURDATE(), b.added_date) >= p2.min_days_in_stock
       AND b.stock <= p2.max_stock
     ORDER BY p2.discount_percent DESC
-    LIMIT 1)
+    LIMIT 1
+)
 WHERE DATEDIFF(CURDATE(), b.added_date) >= r.need_days
    OR b.stock <= r.need_stock
 ORDER BY discount_percent DESC, days_in_stock DESC";
@@ -46,8 +64,13 @@ ORDER BY discount_percent DESC, days_in_stock DESC";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 
-$rules = $pdo->prepare("SELECT promo_name, discount_percent, min_days_in_stock, max_stock, start_date, end_date
-                        FROM promotion WHERE promo_type = 'clearance' ORDER BY discount_percent");
+$rulesSql = "
+    SELECT promo_name, discount_percent, min_days_in_stock, max_stock, start_date, end_date
+    FROM promotion
+    WHERE promo_type = 'clearance'
+    ORDER BY discount_percent
+";
+$rules = $pdo->prepare($rulesSql);
 $rules->execute();
 ?>
 <p class="lead">ระบบลดราคาอัตโนมัติให้หนังสือที่ <b>อยู่ในระบบนาน</b> และ <b>เหลือน้อย</b> (ต้องเข้าทั้ง 2 เงื่อนไข) ตามกฎล้างสต็อกที่ผู้ดูแลกำหนด</p>
@@ -102,7 +125,7 @@ $rules->execute();
 </div>
 
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 2)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php include "footer.php"; ?>

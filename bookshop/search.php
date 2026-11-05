@@ -3,7 +3,6 @@
 $title = "ค้นหาหนังสือ";
 include "header.php";
 
-// รับเงื่อนไขค้นหาจากฟอร์ม: หมวดหมู่ / คำค้น / ช่วงราคา (ไม่กรอก = ไม่จำกัด)
 $category  = (int)($_GET["category"] ?? 0);
 $keyword   = $_GET["keyword"] ?? "";
 $min_price = ($_GET["min_price"] ?? "") === "" ? 0 : (float)$_GET["min_price"];
@@ -12,13 +11,18 @@ $like      = "%" . $keyword . "%";
 $page      = max(1, (int)($_GET["page"] ?? 1));
 $per_page  = 12;
 
-// Query 1: หนังสือพร้อมราคาหลังหักโปรโมชั่นที่ "ลดมากที่สุด" ที่ใช้ได้วันนี้
-//   - seasonal  : แคมเปญเทศกาลของหมวดนั้น (หรือทุกหมวด)
-//   - clearance : หนังสืออยู่ในคลังนาน และเหลือน้อย
-$base_sql = "SELECT b.book_id, b.title, b.author, c.category_name, b.price, b.stock,
-       p.promo_name, p.promo_type,
-       IFNULL(p.discount_percent, 0) AS discount_percent,
-       ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) AS sale_price
+// ค้นหาหนังสือพร้อมคำนวณราคาหลังหักโปรโมชั่นระดับสินค้า (เทศกาล / ล้างสต็อก) ที่ให้ส่วนลดสูงสุด
+$base_sql = "SELECT
+    b.book_id,
+    b.title,
+    b.author,
+    c.category_name,
+    b.price,
+    b.stock,
+    p.promo_name,
+    p.promo_type,
+    IFNULL(p.discount_percent, 0) AS discount_percent,
+    ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) AS sale_price
 FROM book b
 JOIN category c ON c.category_id = b.category_id
 LEFT JOIN promotion p ON p.promo_id = (
@@ -26,21 +30,25 @@ LEFT JOIN promotion p ON p.promo_id = (
     FROM promotion p2
     WHERE p2.is_active = 1
       AND CURDATE() BETWEEN p2.start_date AND p2.end_date
-      AND (  (p2.promo_type = 'seasonal'
+      AND (
+          (p2.promo_type = 'seasonal'
               AND (p2.category_id IS NULL OR p2.category_id = b.category_id))
-          OR (p2.promo_type = 'clearance'
+          OR
+          (p2.promo_type = 'clearance'
               AND DATEDIFF(CURDATE(), b.added_date) >= p2.min_days_in_stock
-              AND b.stock <= p2.max_stock) )
+              AND b.stock <= p2.max_stock)
+      )
     ORDER BY p2.discount_percent DESC
-    LIMIT 1)
+    LIMIT 1
+)
 WHERE (b.category_id = ? OR ? = 0)
   AND (b.title LIKE ? OR b.author LIKE ?)
   AND ROUND(b.price * (100 - IFNULL(p.discount_percent, 0)) / 100, 2) BETWEEN ? AND ?";
+
 $sql = $base_sql . "
 ORDER BY discount_percent DESC, b.title
 LIMIT ? OFFSET ?";
 
-// จำนวนผลลัพธ์ทั้งหมด (ใช้คำนวณจำนวนหน้า)
 $count = $pdo->prepare("SELECT COUNT(*) FROM ($base_sql) AS result");
 $count->execute([$category, $category, $like, $like, $min_price, $max_price]);
 $total = $count->fetchColumn();
@@ -62,13 +70,11 @@ $books = $stmt->fetchAll();
 $cats = $pdo->prepare("SELECT category_id, category_name FROM category ORDER BY category_id");
 $cats->execute();
 
-// ลิงก์เปลี่ยนหน้า: ใช้เงื่อนไขค้นหาเดิม
 $params = $_GET;
 unset($params["page"]);
 ?>
 <script>
-  // Ajax ค้นหาชื่อหนังสือขณะพิมพ์ (ดัดแปลงจากตัวอย่าง productTable ใน Lecture 10)
-  //   suggest.php ตอบกลับเป็น HTML แล้วนำไปใส่ใน <div id="suggest">
+  // ค้นหาหนังสืออัตโนมัติขณะพิมพ์ด้วย Ajax และแสดงรายการแนะนำใต้ช่องค้นหา
   var request;
   function suggest() {
     var keyword = document.getElementById("keyword").value;
@@ -158,7 +164,7 @@ unset($params["page"]);
 
 <?php if (is_admin()) : ?>
 <details class="sql">
-  <summary>ดูคำสั่ง SQL (Query 1)</summary>
+  <summary>ดูคำสั่ง SQL</summary>
   <pre><?=htmlspecialchars($sql)?></pre>
 </details>
 <?php endif; ?>
