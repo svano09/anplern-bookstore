@@ -13,11 +13,6 @@
 - เว็บ http://localhost:8081 · phpMyAdmin http://localhost:8082
 - ล้างข้อมูลกลับเป็นค่าเริ่มต้น: `docker compose down -v` แล้ว `docker compose up -d`
 
-**XAMPP**
-
-1. คัดลอก `bookshop/` ไปไว้ที่ `C:\xampp\htdocs\bookshop`
-2. phpMyAdmin → สร้างฐานข้อมูล `bookshop` (utf8mb4_unicode_ci) → Import `database/bookshop.sql`
-3. เปิด http://localhost/bookshop/
 
 ## บัญชีและข้อมูลทดลอง
 
