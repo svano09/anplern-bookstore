@@ -1,41 +1,40 @@
-# อ่านเพลิน Bookstore — Web Project ฉบับสมบูรณ์ (040613411 Web Development)
+# อ่านเพลิน Bookstore — Web Project
 
 เว็บร้านหนังสือออนไลน์ (PHP + PDO + MySQL/MariaDB) ครบตาม Requirements ที่เสนอไว้ และ Project Rubrics ทั้ง 11 ข้อ
 รายละเอียดทั้งหมดพร้อมภาพหน้าจออยู่ใน `รายงานโครงงาน-ฉบับสมบูรณ์.pdf`
 
-| ไฟล์/โฟลเดอร์ | คืออะไร |
-|---|---|
-| `bookshop/` | โค้ดเว็บทั้งหมด (PHP, CSS, JavaScript, ภาพปก) |
-| `database/bookshop.sql` | สร้าง 10 ตาราง + ข้อมูลตัวอย่าง (เพิ่มตาราง `payment` จากครั้งที่ 2) |
-| `database/queries.sql` | Query จากความคืบหน้าครั้งที่ 2 |
-| `docs/` | System Architecture, Sitemap, Wireframe, ER Diagram (PNG + SVG) |
-| `รายงานโครงงาน-ฉบับสมบูรณ์.pdf` | รายงาน 31 หน้า: Requirements, Architecture, Wireframe, ER, ภาพหน้าจอ, ตารางเทียบ Rubrics |
-| `docker-compose.yml`, `docker/` | เปิดระบบด้วย Docker |
+`bookshop/`โค้ดเว็บทั้งหมด (PHP, CSS, JavaScript, ภาพปก)
+`database/bookshop.sql` สร้าง 10 ตาราง + ข้อมูลตัวอย่าง (เพิ่มตาราง `payment` จากครั้งที่ 2)
+`database/queries.sql`Query จากความคืบหน้าครั้งที่ 2
+`docs/`System Architecture, Sitemap, Wireframe, ER Diagram (PNG + SVG)
+`รายงานโครงงาน-ฉบับสมบูรณ์.pdf`รายงาน 31 หน้า: Requirements, Architecture, Wireframe, ER, ภาพหน้าจอ, ตารางเทียบ Rubrics
+`docker-compose.yml`, `docker/`เปิดระบบด้วย Docker
 
 ## วิธีเปิดเว็บ
 
 **Docker** (ง่ายสุด): ในโฟลเดอร์นี้สั่ง `docker compose up -d --build`
+
 - เว็บ http://localhost:8081 · phpMyAdmin http://localhost:8082
 - ล้างข้อมูลกลับเป็นค่าเริ่มต้น: `docker compose down -v` แล้ว `docker compose up -d`
 
 **XAMPP**
+
 1. คัดลอก `bookshop/` ไปไว้ที่ `C:\xampp\htdocs\bookshop`
 2. phpMyAdmin → สร้างฐานข้อมูล `bookshop` (utf8mb4_unicode_ci) → Import `database/bookshop.sql`
 3. เปิด http://localhost/bookshop/
 
-**Host 193**: อัปโหลด `bookshop/` ไปที่ `~/public_html/`, Import `database/bookshop.sql`, แก้ชื่อฐานข้อมูล/user/รหัสผ่านใน `bookshop/connect.php`, เปิดสิทธิ์เขียนโฟลเดอร์ภาพ `chmod 777 bookshop/img`
+<!-- **Host 193**: อัปโหลด `bookshop/` ไปที่ `~/public_html/`, Import `database/bookshop.sql`, แก้ชื่อฐานข้อมูล/user/รหัสผ่านใน `bookshop/connect.php`, เปิดสิทธิ์เขียนโฟลเดอร์ภาพ `chmod 777 bookshop/img` -->
+
 ต้องใช้ MySQL 8.0+ หรือ MariaDB 10.4+ (มี Window Function) และ PHP 7.3 ขึ้นไป (ทดสอบจริงกับ PHP 8.3 + MariaDB 11.4)
 
 ## บัญชีและข้อมูลทดลอง
 
-| | |
-|---|---|
-| ผู้ดูแลระบบ | `wipawadee.admin@example.com` / `Book@2026` |
+| ผู้ดูแลระบบ | `wipawadee.admin@example.com` / `Book@2026`
 | ลูกค้า | `somchai.j@example.com` / `Book@2026` (มีหนังสือในตะกร้าอยู่แล้ว 3 เล่ม ใช้คูปอง BOOK15 ได้ทันที) |
-| บัตรชำระสำเร็จ | `4242 4242 4242 4242` วันหมดอายุในอนาคต CVV 3 หลักใดก็ได้ |
-| บัตรถูกปฏิเสธ | `4000 0000 0000 0002` |
-| คูปองที่ใช้ได้ | `BOOK15` (ขั้นต่ำ 700 ลด 15% สูงสุด 150), `WELCOME50` (ขั้นต่ำ 300 ลด 50) |
-| ISBN ทดลอง | `9780132350884`, `9780439708180` (ต้องต่ออินเทอร์เน็ต) |
+| บัตรชำระสำเร็จ | `4242 4242 4242 4242` วันหมดอายุในอนาคต CVV 3 หลักใดก็ได้
+| บัตรถูกปฏิเสธ | `4000 0000 0000 0002`
+| คูปองที่ใช้ได้ | `BOOK15` (ขั้นต่ำ 700 ลด 15% สูงสุด 150), `WELCOME50` (ขั้นต่ำ 300 ลด 50)
+| ISBN ทดลอง | `9780132350884`, `9780439708180` (ต้องต่ออินเทอร์เน็ต)
 
 กล่องบัญชีทดลองในหน้าเข้าสู่ระบบแสดงเฉพาะตอนเปิดผ่าน localhost
 
@@ -52,5 +51,6 @@
 
 โฟลเดอร์ `bookshop/` และ `database/` ที่อยู่นอกโฟลเดอร์นี้ คือเวอร์ชันที่วิชา Software Testing ใช้ทดสอบ (ห้ามแก้ เพราะผลทดสอบในรายงานอ้างอิงเวอร์ชันนั้น)
 ฉบับนี้เพิ่มระบบสมาชิก/Login ตะกร้า ชำระเงิน การจัดการของผู้ดูแล และแก้ bug 2 ข้อที่พบจากการทดสอบ:
+
 - BUG-01 ราคา/จำนวนติดลบบันทึกได้เมื่อปิดการตรวจในเบราว์เซอร์ → ตรวจซ้ำฝั่งเซิร์ฟเวอร์ (`book_errors()` ใน `functions.php`)
 - BUG-02 ส่งหมวดหมู่ที่ไม่มีอยู่จริงแล้วขึ้น Fatal error → ตรวจหมวดก่อนบันทึก แสดงข้อความแทน
